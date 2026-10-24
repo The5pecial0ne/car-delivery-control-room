@@ -1,8 +1,9 @@
 "use client"
 
 // All orders, at a glance: one donut of where every order stands, by the
-// board's own lanes. Pick a lane (on the chart or in its legend) to list just
-// those orders in compact rows; each row opens the order record as before.
+// board's own lanes. Pick a lane to list just those orders in compact rows,
+// or several (Shift-click, or the legend's checkboxes) to compare them; each
+// row opens the order record as before.
 // Search and "Needs a person" narrow the chart and the list together.
 
 import Link from "next/link"
@@ -19,22 +20,25 @@ import { Icon } from "../components/icons"
 const LANE_COLOR: Record<string, string> = {
   intake: "#8a78dc", ready: "#d8703a", market: "#a34c72", booked: "#5f93d8", moving: "#2d4f97", delivered: "#1f9a63", cancelled: "#b3ada2",
 }
-const STORE = "board-lane"
+const STORE = "board-lanes"
 
 export default function Orders() {
   const [search, setSearch] = useState("")
   const [onlyAttention, setOnlyAttention] = useState(false)
   const [overview, setOverview] = useState<Overview | null>(null)
   const [error, setError] = useState("")
-  const [lane, setLane] = useState<string | null>(null)
+  const [picked, setPicked] = useState<string[]>([])
 
-  // Coming back from an order keeps the lane that was open.
+  // Coming back from an order keeps the lanes that were open.
   useEffect(() => {
-    try { const saved = sessionStorage.getItem(STORE); if (saved && LANES.some(([key]) => key === saved)) setLane(saved) } catch { /* private window */ }
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(STORE) ?? "[]") as unknown
+      if (Array.isArray(saved)) setPicked(saved.filter((key): key is string => LANES.some(([lane]) => lane === key)))
+    } catch { /* private window, or an older saved value */ }
   }, [])
-  const choose = (next: string | null) => {
-    setLane(next)
-    try { if (next) sessionStorage.setItem(STORE, next); else sessionStorage.removeItem(STORE) } catch { /* private window */ }
+  const choose = (next: string[]) => {
+    setPicked(next)
+    try { if (next.length) sessionStorage.setItem(STORE, JSON.stringify(next)); else sessionStorage.removeItem(STORE) } catch { /* private window */ }
   }
 
   useEffect(() => {
@@ -62,8 +66,14 @@ export default function Orders() {
   }))
   const total = segments.reduce((sum, segment) => sum + segment.count, 0)
   const rank = (card: BoardCard) => LANES.findIndex(([key]) => key === card.displayLane)
-  const rows = (lane ? visible.filter((card) => card.displayLane === lane) : [...visible].sort((a, b) => rank(a) - rank(b)))
-  const listTitle = lane ? laneLabel(lane) : filtering ? "Matching orders" : "All orders"
+  // Lanes in pipeline order, whatever order they were picked in. An order has one lane, and the id check keeps any repeat out.
+  const lanes: string[] = LANES.map(([key]) => key).filter((key) => picked.includes(key))
+  const chosen = new Set<string>(lanes)
+  const seen = new Set<string>()
+  const rows = visible.filter((card) => (!chosen.size || chosen.has(card.displayLane)) && !seen.has(card.id) && seen.add(card.id))
+    .sort((a, b) => rank(a) - rank(b))
+  const listTitle = !lanes.length ? filtering ? "Matching orders" : "All orders"
+    : lanes.length <= 3 ? lanes.map(laneLabel).join(" + ") : `${lanes.length} selected categories`
 
   return <AppFrame section="board" snapshotAt={overview?.snapshotAt ?? null}><main className="orders-page">
     <header className="orders-head">
@@ -89,21 +99,23 @@ export default function Orders() {
 
     <div className="orders-body">
       <section className="orders-chart" aria-label="Orders by status">
-        <h2 className="orders-sec-title">Where every order stands{filtering && <small> · {total} after filters</small>}</h2>
+        <header className="orders-chart-head">
+          <h2 className="orders-sec-title">All orders overview{filtering && <small> · {total} after filters</small>}</h2>
+          <button type="button" className="btn small" onClick={() => choose([])} disabled={!lanes.length}>Show all orders</button>
+        </header>
         {!overview && !error && <div className="skeleton orders-chart-skeleton" aria-busy="true" />}
-        {overview && <DonutChart segments={segments} selected={lane} onSelect={choose} label="Orders by status" />}
-        {overview && <p className="orders-chart-hint">Pick a status on the chart or in the list to see its orders.</p>}
+        {overview && <DonutChart segments={segments} selected={lanes} onSelect={choose} label="Orders by status" />}
+        {overview && <p className="orders-chart-hint">Tip: Shift-click categories to compare multiple groups, or tick them in the list.</p>}
       </section>
 
       <section className="orders-list" aria-label={listTitle} aria-live="polite">
         <header className="orders-list-head">
-          <h2>{lane && <span className={`donut-swatch${lane === "cancelled" ? " is-hatched" : ""}`} style={{ background: lane === "cancelled" ? undefined : LANE_COLOR[lane] }} aria-hidden="true" />}
+          <h2>{lanes.length > 0 && lanes.length <= 3 && <span className="orders-list-swatches" aria-hidden="true">{lanes.map((key) => <span key={key} className={`donut-swatch${key === "cancelled" ? " is-hatched" : ""}`} style={{ background: key === "cancelled" ? undefined : LANE_COLOR[key] }} />)}</span>}
             {listTitle} <span className="num">— {rows.length} order{rows.length === 1 ? "" : "s"}</span></h2>
-          {lane && <button type="button" className="btn small" onClick={() => choose(null)}>Show all orders</button>}
         </header>
         {!overview && !error && <ul className="order-rows" aria-busy="true">{[0, 1, 2, 3].map((index) => <li className="skeleton order-row-skeleton" key={index} />)}</ul>}
-        {overview && rows.length === 0 && <p className="orders-empty">{search ? <>No orders match “{search}”{lane ? ` in ${laneLabel(lane).toLowerCase()}` : ""}.</> : "No orders here."}</p>}
-        {rows.length > 0 && <ul className="order-rows">{rows.map((card) => <li key={card.id}><OrderRow card={card} showLane={!lane} /></li>)}</ul>}
+        {overview && rows.length === 0 && <p className="orders-empty">{search ? <>No orders match “{search}”{lanes.length ? ` in ${lanes.map(laneLabel).join(" or ").toLowerCase()}` : ""}.</> : "No orders here."}</p>}
+        {rows.length > 0 && <ul className="order-rows">{rows.map((card) => <li key={card.id}><OrderRow card={card} showLane={lanes.length !== 1} /></li>)}</ul>}
       </section>
     </div>
   </main></AppFrame>
