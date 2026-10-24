@@ -2,6 +2,8 @@
 // or stops talking. Every lookup, message and proposal is written to the case's
 // steps as it happens, so the control room can show the work live.
 
+import { datasetMetadata } from "@/lib/schema"
+import { db } from "./conn"
 import { AGENT_MODEL, openRouterComplete, type ChatMessage, type CompleteFn } from "./model"
 import { ACTIONS, isActionKind } from "./policy"
 import { AGENT_ID, SYSTEM_PROMPT } from "./prompt"
@@ -21,8 +23,11 @@ const running = new Set<string>()
 export async function openCase(input: { orderId: string; trigger: string; scenario?: string | null }): Promise<CaseRow> {
   const caseRow = await createCase({ ...input, agentId: AGENT_ID })
   await addStep(caseRow.id, { actor: "system", kind: "note", body: `Case opened: ${input.trigger}` })
+  // The dataset is a frozen snapshot, so "now" for the agent is the snapshot time, not the wall clock.
+  const [meta] = await db.select().from(datasetMetadata).limit(1)
+  const now = meta?.snapshotAt.toISOString() ?? new Date().toISOString()
   await updateCase(caseRow.id, {
-    transcript: [{ role: "user", content: `New case on order ${input.orderId}.\nWhat started it: ${input.trigger}\nWork the case.` }],
+    transcript: [{ role: "user", content: `New case on order ${input.orderId}.\nIt is now ${now}.\nWhat started it: ${input.trigger}\nWork the case.` }],
   })
   return caseRow
 }

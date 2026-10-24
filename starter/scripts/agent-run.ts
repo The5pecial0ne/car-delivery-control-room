@@ -1,14 +1,21 @@
 // Run the on-the-road agent on one order from the command line and print what
 // it did, step by step. Needs OPENROUTER_API_KEY in .env.
 //
-//   npm run agent -- ord-00322 "Driver reports a red warning light"
+//   npm run agent -- ord-00322
+//   npm run agent -- ord-00322 "Driver reports a red warning light" "What the driver privately knows"
+//
+// With only an order id, the order's demo scenario from lib/agent/scenarios.ts is used.
 
 import "dotenv/config"
 import { openCase, runCase } from "@/lib/agent/loop"
 import { closeDb } from "@/lib/agent/conn"
+import { scenarioFor } from "@/lib/agent/scenarios"
 import { getCase, listSteps } from "@/lib/agent/store"
 
-const [orderId = "ord-00322", trigger = "Driver reports a red dashboard warning and has stopped.", scenario] = process.argv.slice(2)
+const [orderId = "ord-00322", givenTrigger, givenScenario] = process.argv.slice(2)
+const demo = scenarioFor(orderId)
+const trigger = givenTrigger ?? demo?.trigger ?? "Check on this moving order."
+const scenario = givenScenario ?? demo?.driver
 
 async function main(): Promise<void> {
   const caseRow = await openCase({ orderId, trigger, scenario })

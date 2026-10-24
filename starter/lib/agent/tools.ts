@@ -11,6 +11,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { addresses, alerts, conversations, customers, drivers, messages, orderItems, orders, relatedRecords, vehicles } from "@/lib/schema"
 import { db } from "./conn"
 import { simulateDriverReply } from "./driver"
+import { delayImpact, ferryOptions, hotelOptions, roadsideHelp, towQuote } from "./services"
 import type { CompleteFn, ToolSpec } from "./model"
 import { ACTION_KINDS, ACTIONS, isActionKind } from "./policy"
 import { addStep, type CaseRow, type CaseStatus } from "./store"
@@ -157,6 +158,58 @@ const tools: Tool[] = [
         summary: `Looked up driver ${driver.displayName} and their ${theirs.length} booked job${theirs.length === 1 ? "" : "s"}`,
         content: { driver: { table: "drivers", id: driver.id, name: driver.displayName, home: `${driver.homeCity}, ${driver.homeCountry}`, ...driver.details }, jobs: theirs },
       }
+    },
+  },
+  {
+    name: "find_roadside_help",
+    kind: "lookup",
+    description: "Quotes from roadside assistance near a location. Quotes only: nothing gets booked. Use the most exact location you have.",
+    parameters: { type: "object", required: ["location"], properties: { location: { type: "string" }, make: { type: "string", description: "Car make, for brand assistance advice." } } },
+    async run(args) {
+      const result = roadsideHelp({ location: str(args.location), make: str(args.make) || undefined })
+      return { summary: `Got ${result.options.length} roadside help quotes near ${str(args.location)}`, content: result }
+    },
+  },
+  {
+    name: "get_tow_quote",
+    kind: "lookup",
+    description: "A quote for towing or collecting the car from one place to another. Quote only: nothing gets booked.",
+    parameters: { type: "object", required: ["from", "to"], properties: { from: { type: "string" }, to: { type: "string" } } },
+    async run(args) {
+      const result = towQuote({ from: str(args.from), to: str(args.to) })
+      return { summary: `Got a tow quote from ${result.from} to ${result.to}: ${result.price_eur} EUR`, content: result }
+    },
+  },
+  {
+    name: "search_ferries",
+    kind: "lookup",
+    description: "Ferry sailings for the order's crossing, with status (sold out, quoted, booked), times, check-in cutoffs and prices. A quote is not a booking.",
+    parameters: { type: "object", properties: orderArg },
+    async run(args, ctx) {
+      const result = await ferryOptions(orderOf(args, ctx))
+      return { summary: `Checked ${result.sailings.length} ferry sailing${result.sailings.length === 1 ? "" : "s"}`, content: result }
+    },
+  },
+  {
+    name: "search_hotels",
+    kind: "lookup",
+    description: "Hotels for the driver near a place, for one night. Quotes only: nothing gets booked.",
+    parameters: { type: "object", required: ["near", "night"], properties: { near: { type: "string" }, night: { type: "string", description: "Date of the night, YYYY-MM-DD" } } },
+    async run(args) {
+      const result = hotelOptions({ near: str(args.near), night: str(args.night) })
+      return { summary: `Got ${result.options.length} hotel quotes near ${str(args.near)}`, content: result }
+    },
+  },
+  {
+    name: "estimate_delay_impact",
+    kind: "lookup",
+    description: "What a delay of N hours does to the customer's delivery promise, based on the last known ETA.",
+    parameters: { type: "object", required: ["delay_hours"], properties: { ...orderArg, delay_hours: { type: "number" } } },
+    async run(args, ctx) {
+      const hours = Number(args.delay_hours) || 0
+      const result = await delayImpact({ orderId: orderOf(args, ctx), delayHours: hours })
+      const verdict = result.misses_promise == null ? "no promise on file to compare with" : result.misses_promise ? `would miss the promise by about ${result.hours_late} h` : "still inside the promise"
+      return { summary: `Checked a ${hours} h delay against the delivery promise: ${verdict}`, content: result }
     },
   },
   {

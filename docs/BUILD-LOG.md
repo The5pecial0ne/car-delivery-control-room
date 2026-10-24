@@ -14,3 +14,9 @@ Notes on how we built this with coding agents, kept as we go so the demo video c
 - Hand-overs are checked. If the agent tries to hand over without a headline, with facts that are not a list, or with an action that does not exist, the tool refuses and tells it to fix that.
 - We wrote a plumbing test (`npm run agent:test`) with a scripted stand-in for the model, so we can check the state machine without spending credit.
 - What we threw away: the first version of the driver lookup scanned every job and filtered in code. We moved the filter into the database query.
+
+**Step 2: the on-the-road agent (first half, before we had model access).**
+- Pretend outside services in `lib/agent/services.ts`: roadside help, tow quotes, ferries, hotels and a delay-against-promise check. Prices are made up but stable (seeded by the input), so the demo can be rehearsed. Where the dataset already has a record (the sold-out ferry on CD-420299) the tool returns it with its id, so it can be cited.
+- Three demo scenarios in `lib/agent/scenarios.ts`, picked to show both halves of the job: two cases that need a person (a warning light on a Bentley, a sold-out ferry) and one the agent should close by itself (a ferry queue that starts moving).
+- Caught while testing: the agent would have used the wall clock as "now", but the data is a snapshot from 21 October. The case now starts with the snapshot time.
+- Caught while reading the data: the simulated driver only heard `driver_chat` messages, but some drivers write in `support_chat` or email. It now hears every public message to or from the driver.

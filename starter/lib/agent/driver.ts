@@ -25,7 +25,7 @@ export async function simulateDriverReply(caseRow: CaseRow, complete: CompleteFn
     ? await db.select().from(messages).where(inArray(messages.conversationId, threads.map((thread) => thread.id))).orderBy(asc(messages.authoredAt))
     : []
   const history: ChatMessage[] = earlier
-    .filter((row) => row.details.channel === "driver_chat" && row.details.visibility === "PUBLIC")
+    .filter((row) => row.details.visibility === "PUBLIC" && (row.authorType === "driver" || row.details.recipient_type === "driver"))
     .map((row) => row.authorType === "driver"
       ? { role: "assistant", content: row.body }
       : { role: "user", content: `[Bahn] ${row.body}` })
