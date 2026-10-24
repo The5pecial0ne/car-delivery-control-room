@@ -218,7 +218,7 @@ function DecisionPanel({ decision, zone, priority, onAct }: { decision: Decision
               <button type="button" className="btn" disabled={busy} onClick={onApprove}>{personLed ? "I did the agent's pick" : "Approve the agent's pick"}</button>
             </>}
         <button type="button" className="btn quiet" disabled={busy} onClick={() => setMode("change")}>Do something else</button>
-        <button type="button" className="btn quiet" disabled={busy} onClick={() => setMode("reject")}>Reject</button>
+        <button type="button" className="btn quiet danger" disabled={busy} onClick={() => setMode("reject")}>Reject</button>
       </div>}
     </BestOption>
 
@@ -233,7 +233,7 @@ function DecisionPanel({ decision, zone, priority, onAct }: { decision: Decision
           }[mode]} />
       </label>
       <div className="decision-buttons">
-        <button type="submit" className="btn primary" disabled={busy || (mode !== "reject" && !note.trim())}>{mode === "reject" ? "Reject" : "Tell the agent"}</button>
+        <button type="submit" className={`btn ${mode === "reject" ? "danger" : "primary"}`} disabled={busy || (mode !== "reject" && !note.trim())}>{mode === "reject" ? "Reject" : "Tell the agent"}</button>
         <button type="button" className="btn quiet" onClick={() => { setMode("idle"); setNote("") }}>Cancel</button>
       </div>
     </form>}
