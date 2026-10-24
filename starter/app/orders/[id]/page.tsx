@@ -2,14 +2,17 @@
 
 import Link from "next/link"
 import { use, useEffect, useState } from "react"
+import { caseNow } from "@/lib/agent/clock"
 import { AppFrame } from "../../components/app-frame"
 import { OrderPane, type Detail } from "../../components/order-detail"
+import { OrderTimeline, useOrderCase } from "../../components/order-timeline"
 import { SitePatternNotice } from "../../components/site-pattern"
 
 export default function OrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const [detail, setDetail] = useState<Detail | null>(null)
   const [error, setError] = useState("")
+  const agentCase = useOrderCase(id)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -28,6 +31,8 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
     <nav className="crumbs" aria-label="Breadcrumb"><Link href="/board">Orders</Link><span>/</span><span>{detail?.view.header.reference ?? "Record"}</span></nav>
     {error && <div className="record-state" role="alert"><h1>{error}</h1><p>The record could not be opened. <Link href="/board">Back to orders</Link></p></div>}
     {!error && !detail && <div className="record-state" aria-busy="true"><div className="cover skeleton-cover" /><p>Loading order…</p></div>}
+    {detail && <OrderTimeline view={detail.view} agentCase={agentCase?.case} steps={agentCase?.steps}
+      now={agentCase ? caseNow(detail.view.snapshotAt, agentCase.case.createdAt) : undefined} />}
     {detail && <SitePatternNotice orderId={id} />}
     {detail && <OrderPane detail={detail} />}
   </main></AppFrame>

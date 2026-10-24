@@ -471,6 +471,8 @@ export type ExpenseView = {
 
 export type HistoryEvent = {
   id: string
+  /** The event's command, for example "vehicle.picked_up". */
+  command: string
   at: string
   text: string
   actor: string | null

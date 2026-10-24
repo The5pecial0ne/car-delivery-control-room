@@ -1,27 +1,26 @@
 "use client"
 
-// The desk: the cases that need a person, and nothing else in the way. The
-// agent works every case first. What lands here has already been looked into,
-// with one decision waiting.
+// The control room. In the middle, the orders that need a person, each one
+// saying what is wrong and how long is left. On the right, everything that is
+// going to plan, so nobody has to wonder about it. Pick any order to see its
+// timeline and, when the agent has a case on it, the case itself.
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { relativeTo } from "@/lib/present/time"
-import { caseNow, countdown } from "@/lib/agent/clock"
-import { nextDeadline } from "./components/decision-extras"
+import { laneLabel } from "@/lib/present/labels"
+import { latestCases, splitQueue } from "@/lib/present/queue"
+import type { Overview } from "@/lib/present/types"
 import { AppFrame } from "./components/app-frame"
-import { CaseView, type CaseSummary } from "./components/case-view"
+import type { CaseSummary } from "./components/case-view"
 import { Icon } from "./components/icons"
+import { OrderFocus } from "./components/order-focus"
+import { QueueCard, WatchCard } from "./components/queue-cards"
 
 type Demo = { orderId: string; title: string; open: boolean }
 type Listing = { cases: CaseSummary[]; demos: Demo[]; snapshotAt: string | null }
 
-const GROUPS: { key: string; title: string; note: string; statuses: CaseSummary["status"][] }[] = [
-  { key: "you", title: "Waiting for you", note: "One decision each", statuses: ["needs_person", "failed"] },
-  { key: "agent", title: "Agent is on it", note: "Looking things up and asking", statuses: ["working"] },
-  { key: "done", title: "Handled without you", note: "Closed by the agent or after your decision", statuses: ["resolved"] },
-]
-
-export default function Desk() {
+export default function ControlRoom() {
+  const [search, setSearch] = useState("")
+  const [overview, setOverview] = useState<Overview | null>(null)
   const [listing, setListing] = useState<Listing | null>(null)
   const [error, setError] = useState("")
   const [selected, setSelected] = useState<string | null>(null)
@@ -31,30 +30,49 @@ export default function Desk() {
   const [wall, setWall] = useState(() => Date.now())
   useEffect(() => { const timer = setInterval(() => setWall(Date.now()), 20_000); return () => clearInterval(timer) }, [])
 
-  const load = useCallback(async () => {
+  // The same orders and search as the board, so both pages agree.
+  useEffect(() => {
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+      fetch(`/api/overview?q=${encodeURIComponent(search)}`, { signal: controller.signal })
+        .then((response) => { if (!response.ok) throw new Error("Could not load the orders"); return response.json() as Promise<Overview> })
+        .then((data) => { setOverview(data); setError("") })
+        .catch((cause: unknown) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not load the orders") })
+    }, search ? 180 : 0)
+    return () => { clearTimeout(timer); controller.abort() }
+  }, [search])
+
+  const loadCases = useCallback(async () => {
     try {
       const response = await fetch("/api/cases", { cache: "no-store" })
-      if (!response.ok) throw new Error("Could not load the cases")
-      const data = await response.json() as Listing
-      setListing(data)
-      setError("")
-      setSelected((current) => {
-        if (current && data.cases.some((item) => item.id === current)) return current
-        const wanted = window.location.hash.replace(/^#/, "")
-        return data.cases.find((item) => item.id === wanted)?.id ?? data.cases.find((item) => item.status === "needs_person")?.id ?? data.cases[0]?.id ?? null
-      })
+      if (!response.ok) throw new Error("Could not load the agent's cases")
+      setListing(await response.json() as Listing)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not load the cases")
+      setError(cause instanceof Error ? cause.message : "Could not load the agent's cases")
     }
   }, [])
 
   // Poll quickly while the agent is busy, slowly otherwise.
   const busy = listing?.cases.some((item) => item.status === "working") ?? false
   useEffect(() => {
-    load()
-    const timer = setInterval(load, busy ? 2000 : 8000)
+    loadCases()
+    const timer = setInterval(loadCases, busy ? 2000 : 8000)
     return () => clearInterval(timer)
-  }, [load, busy])
+  }, [loadCases, busy])
+
+  const cases = useMemo(() => latestCases(listing?.cases ?? []), [listing])
+  const { attention, monitored } = useMemo(() => splitQueue(overview?.visible ?? [], cases), [overview, cases])
+  const snapshotAt = overview?.snapshotAt ?? listing?.snapshotAt ?? null
+
+  // Start on the order in the address, or the most pressing one. Older links point at a case.
+  useEffect(() => {
+    if (selected || !overview || !listing) return
+    const wanted = window.location.hash.replace(/^#/, "")
+    const fromCase = listing.cases.find((item) => item.id === wanted)?.orderId
+    const known = overview.visible.some((card) => card.id === wanted) ? wanted : fromCase
+    setSelected(known ?? attention[0]?.id ?? monitored[0]?.id ?? null)
+    if (known) setShowList(false)
+  }, [selected, overview, listing, attention, monitored])
 
   const choose = (id: string) => {
     setSelected(id)
@@ -67,9 +85,8 @@ export default function Desk() {
     try {
       const response = await fetch("/api/cases", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId }) })
       if (!response.ok) throw new Error("Could not start the case")
-      const { id } = await response.json() as { id: string }
-      await load()
-      choose(id)
+      await loadCases()
+      choose(orderId)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not start the case")
     } finally {
@@ -77,48 +94,37 @@ export default function Desk() {
     }
   }
 
-  const cases = listing?.cases ?? []
-  const waiting = cases.filter((item) => item.status === "needs_person" || item.status === "failed").length
-  const working = cases.filter((item) => item.status === "working").length
-  const current = useMemo(() => cases.find((item) => item.id === selected) ?? null, [cases, selected])
+  const waiting = [...cases.values()].filter((item) => item.status === "needs_person").length
+  const lanes = [...new Set(monitored.map((card) => card.displayLane))]
+  const loading = !overview && !error
 
-  return <AppFrame section="desk"><main className={`desk${showList ? "" : " reading"}`}>
-    <section className="desk-list" aria-label="Cases">
-      <header className="desk-list-head">
-        <h1>Needs you</h1>
-        <p>{listing
-          ? waiting ? <><b>{waiting}</b> waiting for a decision{working ? <> · the agent is working on <b>{working}</b></> : null}</> : working ? <>Nothing yet · the agent is working on <b>{working}</b></> : "Nothing needs you right now"
-          : "Loading"}</p>
-      </header>
-      {error && <p className="board-error" role="alert">{error}. Check that the local database is running.</p>}
-      {!listing && !error && <ul className="desk-rows" aria-busy="true">{[0, 1, 2].map((index) => <li className="skeleton desk-skeleton" key={index} />)}</ul>}
-      {listing && GROUPS.map((group) => {
-        const rows = cases.filter((item) => group.statuses.includes(item.status))
-        if (!rows.length) return null
-        return <div className={`desk-group desk-group-${group.key}`} key={group.key}>
-          <h2 className="desk-group-title">{group.title}<span className="num">{rows.length}</span></h2>
-          <ul className="desk-rows">{rows.map((item) => <li key={item.id}>
-            <button type="button" className={`desk-row status-${item.status}${item.id === selected ? " active" : ""}`} onClick={() => choose(item.id)} aria-current={item.id === selected ? "true" : undefined}>
-              <span className="desk-row-top">
-                <span className="desk-row-ref mono">{item.order?.reference ?? item.orderId}</span>
-                <span className="desk-row-car">{item.order?.car}</span>
-                <span className="desk-row-when">{relativeTo(item.updatedAt, new Date().toISOString())?.text}</span>
-              </span>
-              {item.status === "needs_person" && (() => {
-                const next = nextDeadline(item.pendingDecision?.deadlines, caseNow(listing.snapshotAt, item.createdAt, wall))
-                if (!next) return null
-                const left = countdown(next.at, caseNow(listing.snapshotAt, item.createdAt, wall))
-                return <span className={`desk-row-deadline tone-${left.tone}`}><b className="num">{left.left}</b> until {next.what.charAt(0).toLowerCase() + next.what.slice(1)}</span>
-              })()}
-              <span className="desk-row-headline">{item.status === "working" ? <><span className="pulse" aria-hidden="true" />{item.headline ?? item.trigger}</> : item.headline ?? item.trigger}</span>
-            </button>
-          </li>)}</ul>
-        </div>
-      })}
-      {listing && !cases.length && <div className="desk-empty">
+  return <AppFrame section="desk" snapshotAt={snapshotAt}><main className={`control${showList ? "" : " reading"}`}>
+    <header className="control-head">
+      <div className="board-title">
+        <h1>Control room</h1>
+        <p className="board-sub">{overview
+          ? <><b>{attention.length}</b> need attention{waiting ? <> · <b>{waiting}</b> waiting for your decision</> : null} · <b>{monitored.length}</b> on track or done{search ? " matching your search" : ""}</>
+          : "Loading the snapshot"}</p>
+      </div>
+      <label className="search">
+        <span className="sr-only">Search orders</span>
+        <Icon name="search" />
+        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Reference, car, plate, customer or city" />
+        {search && <button type="button" className="search-clear" onClick={() => setSearch("")} aria-label="Clear search"><Icon name="arrow" size={14} style={{ transform: "rotate(45deg)" }} /></button>}
+      </label>
+    </header>
+    {error && <p className="board-error" role="alert">{error}. Check that the local database is running and seeded.</p>}
+
+    <section className="control-queue" aria-labelledby="queue-title">
+      <h2 className="control-col-title" id="queue-title"><Icon name="alert" size={14} />Needs attention<span className="num">{overview ? attention.length : ""}</span></h2>
+      {loading && <ul className="queue-list" aria-busy="true">{[0, 1, 2].map((index) => <li className="skeleton" key={index} />)}</ul>}
+      {overview && attention.length === 0 && <div className="desk-empty">
         <Icon name="check" size={18} />
-        <p><b>Nothing needs you right now.</b><br />When the agent finds something it cannot settle on its own, it lands here with one decision.</p>
+        <p>{search ? <><b>No order that needs attention matches “{search}”.</b></> : <><b>Everything is currently on track.</b><br />When something goes wrong it shows up here with what is wrong and how long is left.</>}</p>
       </div>}
+      {attention.length > 0 && <ul className="queue-list">{attention.map((card) => <li key={card.id}>
+        <QueueCard card={card} agentCase={cases.get(card.id)} snapshotAt={snapshotAt} wall={wall} active={card.id === selected} onSelect={choose} />
+      </li>)}</ul>}
       {listing && listing.demos.length > 0 && <footer className="desk-demos">
         <p>Start a demo case</p>
         <ul>{listing.demos.map((demo) => <li key={demo.orderId}>
@@ -128,10 +134,23 @@ export default function Desk() {
         </li>)}</ul>
       </footer>}
     </section>
-    <section className="desk-read" aria-label="Case">
-      {current
-        ? <CaseView key={current.id} summary={current} snapshotAt={listing?.snapshotAt ?? null} onBack={() => setShowList(true)} onChange={load} />
-        : <p className="empty desk-read-empty">{listing ? cases.length ? "Choose a case." : "Start a demo case to see the agent work." : "Loading…"}</p>}
+
+    <section className="control-read" aria-label="Selected order">
+      {selected
+        ? <OrderFocus key={selected} orderId={selected} agentCase={cases.get(selected) ?? null} snapshotAt={snapshotAt} onBack={() => setShowList(true)} onChange={loadCases} />
+        : <p className="empty desk-read-empty">{overview ? "Choose an order to see its timeline." : "Loading…"}</p>}
     </section>
+
+    <aside className="control-watch" aria-labelledby="watch-title">
+      <h2 className="control-col-title" id="watch-title"><Icon name="check" size={14} />Monitored · on track<span className="num">{overview ? monitored.length : ""}</span></h2>
+      {loading && <ul className="watch-list" aria-busy="true">{[0, 1, 2, 3].map((index) => <li className="skeleton watch-skeleton" key={index} />)}</ul>}
+      {overview && monitored.length === 0 && <p className="lane-empty">{search ? `No monitored orders match “${search}”.` : "No orders are being monitored right now."}</p>}
+      {lanes.map((lane) => <div className="watch-group" key={lane}>
+        <h3 className="watch-group-title">{laneLabel(lane)}<span className="num">{monitored.filter((card) => card.displayLane === lane).length}</span></h3>
+        <ul className="watch-list">{monitored.filter((card) => card.displayLane === lane).map((card) => <li key={card.id}>
+          <WatchCard card={card} snapshotAt={snapshotAt} active={card.id === selected} onSelect={choose} />
+        </li>)}</ul>
+      </div>)}
+    </aside>
   </main></AppFrame>
 }
