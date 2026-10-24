@@ -4,7 +4,7 @@ import { db } from "@/lib/agent/conn"
 import { isRunning, openCase, runCase } from "@/lib/agent/loop"
 import { SCENARIOS, scenarioFor } from "@/lib/agent/scenarios"
 import { listCases } from "@/lib/agent/store"
-import { addresses, customers, orderItems, orders, vehicles } from "@/lib/schema"
+import { addresses, customers, datasetMetadata, orderItems, orders, vehicles } from "@/lib/schema"
 
 export const runtime = "nodejs"
 
@@ -26,7 +26,10 @@ export async function GET() {
       from: city(order.pickupAddressId), to: city(order.deliveryAddressId),
     }]
   }))
+  // Cases run on the snapshot's clock, so countdowns need its start.
+  const [meta] = await db.select().from(datasetMetadata).limit(1)
   return NextResponse.json({
+    snapshotAt: meta?.snapshotAt.toISOString() ?? null,
     // The model transcript and the driver's private scenario are the agent's business, not the interface's.
     cases: cases.map(({ transcript: _transcript, scenario: _scenario, ...rest }) => ({ ...rest, running: isRunning(rest.id), order: orderInfo.get(rest.orderId) ?? null })),
     demos: SCENARIOS.map(({ orderId, title }) => ({ orderId, title, open: cases.some((row) => row.orderId === orderId && row.status !== "resolved") })),

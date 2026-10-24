@@ -50,6 +50,12 @@ export async function simulateDriverReply(caseRow: CaseRow, complete: CompleteFn
     "This is the truth as of now. It overrides anything you said earlier in the chat, because things have moved on since. Stay consistent with it in every reply.",
   ].join("\n")
 
+  // A small model drifts back to the old chat ("still in the queue"), so remind
+  // it of where things stand right next to the message it is answering.
+  const last = history.at(-1)
+  if (last?.role === "user" && caseRow.scenario) {
+    history[history.length - 1] = { role: "user", content: `${last.content}\n\n(Private note to you, not part of Bahn's message: right now, ${caseRow.scenario})` }
+  }
   const reply = await complete({ model: DRIVER_MODEL, messages: [{ role: "system", content: system }, ...history], temperature: 0.4 })
   return (reply.content ?? "").trim() || "Sorry, can you say that again?"
 }

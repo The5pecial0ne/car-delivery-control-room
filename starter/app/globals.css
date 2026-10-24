@@ -636,3 +636,80 @@ a.source:hover { text-decoration: underline; }
   .case .mail-back { display: inline-flex; }
   .bubble { max-width: 92%; }
 }
+
+/* Before when: deadlines as a countdown instead of a risk badge. */
+.tone-subtle { color: var(--subtle); }
+.deadlines { margin-top: 18px; padding: 14px 16px; border-radius: var(--radius-lg); background: var(--tray); box-shadow: 0 0 0 1px var(--hair); }
+.deadline-lead { font-size: 15px; font-weight: 500; color: var(--ink); }
+.deadline-lead b { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin-right: 4px; }
+.deadline-lead.tone-danger b { color: var(--red-ink); }
+.deadline-lead.tone-warn b { color: var(--orange-ink); }
+.deadline-list { display: grid; gap: 0; margin-top: 10px; }
+.deadline-list li { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 7px 0; border-top: 1px solid var(--hair-soft); font-size: 13.5px; }
+.deadline-list li.passed { opacity: 0.55; }
+.deadline-list li.next .deadline-what { font-weight: 600; }
+.deadline-time { color: var(--brown); }
+.deadline-time small, .deadline-what small { display: block; font-size: 11.5px; color: var(--subtle); font-weight: 400; }
+.deadline-left { white-space: nowrap; font-size: 13px; }
+.desk-row-deadline { font-size: 12.5px; color: var(--muted); }
+.desk-row-deadline b { font-weight: 600; }
+.desk-row-deadline.tone-danger b { color: var(--red-ink); }
+.desk-row-deadline.tone-warn b { color: var(--orange-ink); }
+
+/* Options scored for speed, cost and certainty. */
+.option-scores { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+.certainty { padding: 0 7px; border-radius: 999px; font-size: 11.5px; font-weight: 500; }
+.certainty-confirmed { background: var(--green-bg); color: var(--green-ink); }
+.certainty-quoted { background: var(--teal-bg); color: var(--teal-ink); }
+.certainty-uncertain { background: var(--orange-bg); color: var(--orange-ink); }
+.compare { margin-top: 16px; padding-top: 4px; border-top: 1px solid var(--hair-soft); }
+.compare-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.compare-head .case-sec-title { margin: 12px 0 4px; }
+.segmented { display: inline-flex; padding: 2px; border-radius: 999px; background: var(--canvas); box-shadow: inset 0 0 0 1px var(--hair); }
+.segmented button { height: 28px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.segmented button.on { background: var(--birch); color: var(--ink); box-shadow: 0 0 0 1px var(--hair), 0 1px 2px rgba(66, 61, 51, 0.08); }
+.compare-list { display: grid; gap: 6px; margin-top: 8px; }
+.compare-list li { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: var(--radius); background: var(--tray); box-shadow: 0 0 0 1px var(--hair-soft); }
+.compare-list li.best { box-shadow: 0 0 0 1.5px var(--teal); background: var(--birch); }
+.compare-main { display: grid; gap: 2px; flex: 1; min-width: 0; font-size: 13.5px; }
+.compare-tag { font-size: 11.5px; font-weight: 500; color: var(--subtle); }
+.compare-list li.best .compare-tag { color: var(--teal-ink); }
+.compare-summary { color: var(--brown); }
+
+/* Plan B the agent prepared while waiting. */
+.plan-b { margin-top: 16px; padding: 14px 16px; border-radius: var(--radius); background: var(--tray); box-shadow: inset 3px 0 0 var(--sand), 0 0 0 1px var(--hair-soft); }
+.plan-b-trigger { margin-top: 6px; font-size: 13px; font-weight: 500; color: var(--orange-ink); }
+.plan-b-steps { margin: 8px 0 0 18px; list-style: decimal; display: grid; gap: 3px; font-size: 13.5px; color: var(--brown); }
+.plan-b .decision-buttons { margin-top: 12px; }
+
+/* Easy reading mode. */
+.reading-toggle { display: flex; align-items: center; gap: 9px; margin: auto 10px 0; padding: 6px 0; border: 0; background: transparent; font-size: 13px; color: var(--muted); }
+.reading-toggle:hover { color: var(--ink); }
+.reading-switch { position: relative; width: 28px; height: 16px; border-radius: 999px; background: var(--sand); flex: none; transition: background 0.15s; }
+.reading-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--birch); transition: transform 0.15s; }
+.reading-toggle.on { color: var(--ink); }
+.reading-toggle.on .reading-switch { background: var(--teal-ink); }
+.reading-toggle.on .reading-switch::after { transform: translateX(12px); }
+
+:root[data-reading="easy"] {
+  --font-body: "Lexend", Verdana, Arial, sans-serif;
+  --font-display: "Lexend", Verdana, Arial, sans-serif;
+  --ink: #1d1b16;
+  font-size: 15.5px;
+}
+:root[data-reading="easy"] body { letter-spacing: 0.02em; word-spacing: 0.12em; line-height: 1.7; }
+:root[data-reading="easy"] :is(p, li, dd, span, label, textarea, button) { line-height: 1.65; }
+:root[data-reading="easy"] :is(h1, h2, h3, .page-title, .case-headline) { letter-spacing: 0; line-height: 1.3; font-weight: 600; }
+:root[data-reading="easy"] :is(em, i, .tl-thought span) { font-style: normal; }
+:root[data-reading="easy"] :is(.desk-row-headline, .row-preview, .card-line) { -webkit-line-clamp: unset; display: block; overflow: visible; white-space: normal; }
+:root[data-reading="easy"] :is(p, li) { max-width: 70ch; text-align: left; }
+:root[data-reading="easy"] .mono { letter-spacing: 0.04em; }
+
+/* Site pattern detected. */
+.site-pattern { margin-top: 16px; padding: 12px 16px; border-radius: var(--radius); background: var(--orange-bg); box-shadow: inset 3px 0 0 var(--orange); font-size: 13.5px; color: var(--brown); }
+.site-pattern-label { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--orange-ink); }
+.site-pattern-head { margin-top: 4px; color: var(--ink); }
+.site-pattern-head a { color: inherit; }
+.site-pattern-advice { margin-top: 4px; }
+.site-pattern-orders { margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+.reading-toggle + .sidebar-foot { margin-top: -14px; }

@@ -9,6 +9,9 @@ import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { actionLabel, isPersonLed, parseSource, URGENCY, type Decision } from "@/lib/agent/labels"
 import { fmtClock } from "@/lib/present/time"
+import { zoneForCity } from "@/lib/agent/clock"
+import { Deadlines, OptionCompare, PlanBPanel, useCaseNow } from "./decision-extras"
+import { SitePatternNotice } from "./site-pattern"
 import { Icon } from "./icons"
 import { Chip } from "./ui"
 
@@ -39,7 +42,7 @@ async function post(url: string, body: unknown) {
   if (!response.ok) throw new Error((await response.json().catch(() => ({})) as { error?: string }).error ?? "Something went wrong")
 }
 
-export function CaseView({ summary, onBack, onChange }: { summary: CaseSummary; onBack: () => void; onChange: () => void }) {
+export function CaseView({ summary, snapshotAt, onBack, onChange }: { summary: CaseSummary; snapshotAt: string | null; onBack: () => void; onChange: () => void }) {
   const [steps, setSteps] = useState<Step[] | null>(null)
   const [detail, setDetail] = useState<CaseSummary>(summary)
   const [error, setError] = useState("")
@@ -75,6 +78,8 @@ export function CaseView({ summary, onBack, onChange }: { summary: CaseSummary; 
   const status = STATUS[detail.status]
   const decision = detail.status === "needs_person" ? detail.pendingDecision : null
   const order = detail.order
+  const now = useCaseNow(snapshotAt, detail.createdAt)
+  const zone = zoneForCity(order?.to)
 
   return <article className="case">
     <button type="button" className="mail-back" onClick={onBack}><Icon name="chevron" size={13} style={{ transform: "rotate(180deg)" }} /> All cases</button>
@@ -93,7 +98,9 @@ export function CaseView({ summary, onBack, onChange }: { summary: CaseSummary; 
     {!decision && detail.status === "working" && <p className="case-working">The agent is looking into this. It will bring you a decision if it needs one.</p>}
     {error && <p className="board-error case-error" role="alert">{error}</p>}
 
-    {decision && <DecisionPanel decision={decision} onAct={(body) => act(`/api/cases/${detail.id}/decision`, body)} />}
+    <SitePatternNotice orderId={detail.orderId} />
+    {!!decision?.deadlines?.length && <Deadlines deadlines={decision.deadlines} now={now} zone={zone} />}
+    {decision && <DecisionPanel decision={decision} zone={zone} onAct={(body) => act(`/api/cases/${detail.id}/decision`, body)} />}
     {decision && <Findings decision={decision} steps={steps ?? []} />}
 
     <section className="case-story" aria-label="What happened">
@@ -106,11 +113,13 @@ export function CaseView({ summary, onBack, onChange }: { summary: CaseSummary; 
   </article>
 }
 
-function DecisionPanel({ decision, onAct }: { decision: Decision; onAct: (body: { choice: string; note?: string }) => Promise<void> }) {
+function DecisionPanel({ decision, zone, onAct }: { decision: Decision; zone: string; onAct: (body: { choice: string; note?: string }) => Promise<void> }) {
   const recommendation = decision.recommendation ?? {}
   const [draft, setDraft] = useState(recommendation.customer_message_draft ?? "")
   const [mode, setMode] = useState<"idle" | "done" | "change" | "reject">("idle")
   const personLed = isPersonLed(recommendation.action)
+  // Older hand-overs have no scores; they keep the plain "Or instead" list.
+  const scored = !!recommendation.certainty
   const [note, setNote] = useState("")
   const [busy, setBusy] = useState(false)
 
@@ -158,7 +167,12 @@ function DecisionPanel({ decision, onAct }: { decision: Decision; onAct: (body: 
       </div>
     </form>}
 
-    {mode === "idle" && !!decision.alternatives?.length && <div className="decision-alts">
+    {mode === "idle" && scored && <OptionCompare zone={zone} busy={busy}
+      options={[{ option: recommendation, tag: "Recommended" }, ...(decision.alternatives ?? []).map((option, index) => ({ option, tag: `Option ${index + 2}` })), ...(decision.plan_b ? [{ option: decision.plan_b, tag: "Plan B" }] : [])]}
+      onChoose={(option, priority, tag) => run({ choice: "change", note: `${tag === "Plan B" ? "Switch to plan B" : "Do this instead"}${priority === "balanced" ? "" : ` (what matters most today: ${priority})`}: ${option.summary}` })} />}
+    {mode === "idle" && decision.plan_b && <PlanBPanel plan={decision.plan_b} zone={zone} busy={busy}
+      onSwitch={() => run({ choice: "change", note: `Switch to plan B now: ${decision.plan_b?.summary ?? ""}` })} />}
+    {mode === "idle" && !scored && !!decision.alternatives?.length && <div className="decision-alts">
       <p>Or instead</p>
       <ul>{decision.alternatives.map((alternative, index) => <li key={index}>
         <button type="button" className="alt" disabled={busy} onClick={() => run({ choice: "change", note: `Do this instead: ${alternative.summary}` })}>

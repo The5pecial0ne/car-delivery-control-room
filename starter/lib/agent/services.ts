@@ -6,7 +6,7 @@
 // order, say) we return that with its id, and fill in the rest as simulated.
 
 import { and, eq } from "drizzle-orm"
-import { relatedRecords } from "@/lib/schema"
+import { drivers, relatedRecords } from "@/lib/schema"
 import { db } from "./conn"
 
 // A small, stable hash so made-up numbers do not change between runs.
@@ -45,7 +45,7 @@ const PLACES: Record<string, [number, number]> = {
   lahti: [60.98, 25.66], oulu: [65.01, 25.47], seinäjoki: [62.79, 22.84], pori: [61.48, 21.8],
   hamburg: [53.55, 9.99], munich: [48.14, 11.58], münchen: [48.14, 11.58], holledau: [48.6, 11.62], frankfurt: [50.11, 8.68],
   cologne: [50.94, 6.96], köln: [50.94, 6.96], düsseldorf: [51.23, 6.77], leipzig: [51.34, 12.37], berlin: [52.52, 13.4],
-  stuttgart: [48.78, 9.18], göttingen: [51.54, 9.93], kassel: [51.31, 9.48], hannover: [52.37, 9.73], hanover: [52.37, 9.73], nuremberg: [49.45, 11.08], nürnberg: [49.45, 11.08], ingolstadt: [48.77, 11.43],
+  stuttgart: [48.78, 9.18], göttingen: [51.54, 9.93], kassel: [51.31, 9.48], hannover: [52.37, 9.73], hanover: [52.37, 9.73], jyväskylä: [62.24, 25.75], ghent: [51.05, 3.72], uppsala: [59.86, 17.64], nuremberg: [49.45, 11.08], nürnberg: [49.45, 11.08], ingolstadt: [48.77, 11.43],
   copenhagen: [55.68, 12.57], odense: [55.4, 10.39], aarhus: [56.16, 10.2], aalborg: [57.05, 9.92],
   stockholm: [59.33, 18.07], gothenburg: [57.71, 11.97], malmö: [55.6, 13.0],
   lyon: [45.76, 4.84], lille: [50.63, 3.06], paris: [48.86, 2.35], marseille: [43.3, 5.37], bordeaux: [44.84, -0.58],
@@ -66,6 +66,34 @@ function roadKm(from: string, to: string): number | null {
   const h = Math.sin((b[0] - a[0]) * rad / 2) ** 2 + Math.cos(a[0] * rad) * Math.cos(b[0] * rad) * Math.sin((b[1] - a[1]) * rad / 2) ** 2
   // Straight line times a usual detour factor for roads.
   return Math.max(5, Math.round(2 * 6371 * Math.asin(Math.sqrt(h)) * 1.25))
+}
+
+/**
+ * Drivers who live near a place and have no job in progress or accepted,
+ * nearest first. Whether they would take the job is not known: nobody has
+ * asked them, and the agent cannot.
+ */
+export async function backupDrivers(input: { near: string; excludeOrderId?: string }) {
+  const [all, jobs] = await Promise.all([
+    db.select().from(drivers),
+    db.select().from(relatedRecords).where(eq(relatedRecords.collection, "work_assignments")),
+  ])
+  const busy = new Set(jobs.filter((job) => ["IN_PROGRESS", "ACCEPTED", "ASSIGNED"].includes(String(job.details.status))).map((job) => String(job.details.driver_id)))
+  const bookedHere = new Set(jobs.filter((job) => job.orderId === input.excludeOrderId).map((job) => String(job.details.driver_id)))
+  const found = all
+    .filter((driver) => driver.details.active !== false && !bookedHere.has(driver.id))
+    .map((driver) => ({ driver, km: roadKm(input.near, driver.homeCity) }))
+    .filter((row): row is { driver: typeof row.driver; km: number } => row.km != null && row.km <= 400)
+    .sort((a, b) => a.km - b.km)
+  return {
+    note: "Availability is not confirmed. These drivers have no job in progress, but nobody has asked them. Offering the job is a person's decision.",
+    known_place: locate(input.near) != null,
+    drivers: found.slice(0, 5).map(({ driver, km }) => ({
+      table: "drivers", id: driver.id, name: driver.displayName, home: `${driver.homeCity}, ${driver.homeCountry}`,
+      road_km_from_home: km, could_be_there_in_hours: Math.round((km / 80 + 0.75) * 10) / 10,
+      on_another_job: busy.has(driver.id),
+    })),
+  }
 }
 
 export function towQuote(input: { from: string; to: string }) {

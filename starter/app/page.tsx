@@ -6,12 +6,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { relativeTo } from "@/lib/present/time"
+import { caseNow, countdown } from "@/lib/agent/clock"
+import { nextDeadline } from "./components/decision-extras"
 import { AppFrame } from "./components/app-frame"
 import { CaseView, type CaseSummary } from "./components/case-view"
 import { Icon } from "./components/icons"
 
 type Demo = { orderId: string; title: string; open: boolean }
-type Listing = { cases: CaseSummary[]; demos: Demo[] }
+type Listing = { cases: CaseSummary[]; demos: Demo[]; snapshotAt: string | null }
 
 const GROUPS: { key: string; title: string; note: string; statuses: CaseSummary["status"][] }[] = [
   { key: "you", title: "Waiting for you", note: "One decision each", statuses: ["needs_person", "failed"] },
@@ -25,6 +27,9 @@ export default function Desk() {
   const [selected, setSelected] = useState<string | null>(null)
   const [showList, setShowList] = useState(true)
   const [starting, setStarting] = useState<string | null>(null)
+  // Countdowns on the cards tick with the real clock.
+  const [wall, setWall] = useState(() => Date.now())
+  useEffect(() => { const timer = setInterval(() => setWall(Date.now()), 20_000); return () => clearInterval(timer) }, [])
 
   const load = useCallback(async () => {
     try {
@@ -99,6 +104,12 @@ export default function Desk() {
                 <span className="desk-row-car">{item.order?.car}</span>
                 <span className="desk-row-when">{relativeTo(item.updatedAt, new Date().toISOString())?.text}</span>
               </span>
+              {item.status === "needs_person" && (() => {
+                const next = nextDeadline(item.pendingDecision?.deadlines, caseNow(listing.snapshotAt, item.createdAt, wall))
+                if (!next) return null
+                const left = countdown(next.at, caseNow(listing.snapshotAt, item.createdAt, wall))
+                return <span className={`desk-row-deadline tone-${left.tone}`}><b className="num">{left.left}</b> until {next.what.charAt(0).toLowerCase() + next.what.slice(1)}</span>
+              })()}
               <span className="desk-row-headline">{item.status === "working" ? <><span className="pulse" aria-hidden="true" />{item.headline ?? item.trigger}</> : item.headline ?? item.trigger}</span>
             </button>
           </li>)}</ul>
@@ -119,7 +130,7 @@ export default function Desk() {
     </section>
     <section className="desk-read" aria-label="Case">
       {current
-        ? <CaseView key={current.id} summary={current} onBack={() => setShowList(true)} onChange={load} />
+        ? <CaseView key={current.id} summary={current} snapshotAt={listing?.snapshotAt ?? null} onBack={() => setShowList(true)} onChange={load} />
         : <p className="empty desk-read-empty">{listing ? cases.length ? "Choose a case." : "Start a demo case to see the agent work." : "Loading…"}</p>}
     </section>
   </main></AppFrame>

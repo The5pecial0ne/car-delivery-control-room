@@ -16,7 +16,7 @@ const defaults: Deps = { complete: openRouterComplete }
 
 // Enough room to look things up and have a short chat with the driver, but not
 // enough to wander off. Hitting it is treated as "needs a person".
-const MAX_TURNS = 16
+const MAX_TURNS = 24
 
 // One run per case at a time, so two clicks never interleave two conversations.
 const running = new Set<string>()

@@ -12,7 +12,8 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { addresses, alerts, conversations, customers, drivers, messages, orderItems, orders, relatedRecords, vehicles } from "@/lib/schema"
 import { db } from "./conn"
 import { simulateDriverReply } from "./driver"
-import { delayImpact, ferryOptions, hotelOptions, localTime, planSailings, roadsideHelp, towQuote } from "./services"
+import { patternsForOrder } from "./patterns"
+import { backupDrivers, delayImpact, ferryOptions, hotelOptions, localTime, planSailings, roadsideHelp, towQuote } from "./services"
 import type { ChatMessage, CompleteFn, ToolSpec } from "./model"
 import { ACTION_KINDS, ACTIONS, AUTO_ACTIONS, isActionKind } from "./policy"
 import { addStep, type CaseRow, type CaseStatus } from "./store"
@@ -49,6 +50,16 @@ function unseenSources(sources: string[], ctx: ToolContext): string[] {
 }
 
 const HEADLINE_MAX = 140
+
+// How each option scores, so the desk can rank them by what the person cares
+// about most right now: speed, cost or certainty.
+const OPTION_SCORES = {
+  arrives_at: { type: "string", description: "When the car would reach the buyer with this option (UTC, ISO 8601), if you can tell." },
+  cost_eur: { type: "number", description: "Extra cost to Bahn, as far as known." },
+  certainty: { type: "string", enum: ["confirmed", "quoted", "uncertain"], description: "confirmed: already booked or agreed. quoted: we have a quote or a firm answer. uncertain: depends on something nobody has confirmed." },
+}
+const CERTAINTY = ["confirmed", "quoted", "uncertain"]
+const isTime = (value: unknown) => typeof value === "string" && !Number.isNaN(new Date(value).getTime())
 // Ids belong in the sources, not in what a person reads first.
 const HAS_ID = /\b(ord|cd)-\d{5,}\b|\b[a-z]+-x?[0-9a-f]{8,}\b|agent_steps|simulated\//i
 
@@ -76,12 +87,13 @@ const tools: Tool[] = [
       const id = orderOf(args, ctx)
       const [order] = await db.select().from(orders).where(eq(orders.id, id)).limit(1)
       if (!order) return { content: { error: `No order ${id}` }, summary: `Could not find order ${id}` }
-      const [[customer], items, places, windows, assignments] = await Promise.all([
+      const [[customer], items, places, windows, assignments, patterns] = await Promise.all([
         db.select().from(customers).where(eq(customers.id, order.customerId)).limit(1),
         db.select({ item: orderItems, vehicle: vehicles }).from(orderItems).innerJoin(vehicles, eq(orderItems.vehicleId, vehicles.id)).where(eq(orderItems.orderId, id)),
         db.select().from(addresses).where(inArray(addresses.id, [order.pickupAddressId, order.deliveryAddressId])),
         relatedFor(id, ["time_windows"]),
         relatedFor(id, ["work_assignments"]),
+        patternsForOrder(id),
       ])
       const driverIds = assignments.map((row) => str(row.driver_id)).filter(Boolean)
       const driverRows = driverIds.length ? await db.select().from(drivers).where(inArray(drivers.id, driverIds)) : []
@@ -101,6 +113,12 @@ const tools: Tool[] = [
           // Local times next to the UTC ones, so nobody has to convert in their head.
           time_windows: windows.map((row) => ({ ...row, local: `${localTime(str(row.start_at), row.timezone)} to ${localTime(str(row.end_at), row.timezone)}` })),
           driver_work: assignments.map((row) => ({ ...row, driver: driverRows.find((driver) => driver.id === row.driver_id)?.displayName ?? null })),
+          // Places on this order where the same trouble keeps coming back. Worth a line in a hand-over.
+          site_patterns: patterns.map((pattern) => ({
+            site: pattern.siteName, troubled_orders: pattern.troubledOrders, of_orders: pattern.orders,
+            themes: pattern.themes.map((theme) => theme.label), advice: pattern.themes[0]?.advice,
+            sources: pattern.signals.map((signal) => signal.source),
+          })),
         },
       }
     },
@@ -227,6 +245,16 @@ const tools: Tool[] = [
     },
   },
   {
+    name: "find_backup_drivers",
+    kind: "lookup",
+    description: "Drivers in our network who live near a place and are not on another job right now, nearest first, for a plan B. You cannot contact them; offering them the job is a person's call.",
+    parameters: { type: "object", required: ["near"], properties: { near: { type: "string", description: "A city or place, for example 'Rasthof Göttingen, A7'." } } },
+    async run(args, ctx) {
+      const result = await backupDrivers({ near: str(args.near), excludeOrderId: ctx.caseRow.orderId })
+      return { summary: `Found ${result.drivers.length} possible backup driver${result.drivers.length === 1 ? "" : "s"} near ${str(args.near)}`, content: result }
+    },
+  },
+  {
     name: "search_hotels",
     kind: "lookup",
     description: "Hotels for the driver near a place, for one night. Quotes only: nothing gets booked.",
@@ -318,10 +346,37 @@ const tools: Tool[] = [
             action: { type: "string", enum: ACTION_KINDS },
             summary: { type: "string", description: "What should happen, in one or two sentences." },
             customer_message_draft: { type: "string", description: "If a customer should hear from us, a draft for the person to send or edit." },
-            cost_eur: { type: "number" },
+            ...OPTION_SCORES,
           },
         },
-        alternatives: { type: "array", items: { type: "object", required: ["action", "summary"], properties: { action: { type: "string", enum: ACTION_KINDS }, summary: { type: "string" } } } },
+        alternatives: { type: "array", items: { type: "object", required: ["action", "summary", "certainty"], properties: { action: { type: "string", enum: ACTION_KINDS }, summary: { type: "string" }, ...OPTION_SCORES } } },
+        deadlines: {
+          type: "array",
+          description: "What must happen before when, earliest first. The desk shows these as a countdown instead of a risk badge. Include the last safe moment for the plan you recommend, hard cutoffs (check-in, the driver's limit, a site closing) and the delivery promise.",
+          items: {
+            type: "object", required: ["at", "what", "sources"],
+            properties: {
+              at: { type: "string", description: "UTC, ISO 8601" },
+              what: { type: "string", description: "Short, for example 'Last safe time to redirect the driver' or 'Ferry check-in closes'." },
+              miss: { type: "string", description: "What happens if it passes, in a few words." },
+              zone: { type: "string", description: "IANA time zone of the place it happens, for example Europe/Berlin or Europe/Helsinki." },
+              sources: { type: "array", items: { type: "string" } },
+            },
+          },
+        },
+        plan_b: {
+          type: "object",
+          description: "The fallback you prepared while waiting, so nobody starts from zero if plan A fails. Do the lookups for it before handing over.",
+          required: ["trigger", "summary", "sources"],
+          properties: {
+            trigger: { type: "string", description: "When to switch, for example 'If the dealer has not answered by 12:00 Göttingen time'." },
+            summary: { type: "string", description: "What we would do instead, in one or two sentences." },
+            steps: { type: "array", items: { type: "string" } },
+            action: { type: "string", enum: ACTION_KINDS },
+            ...OPTION_SCORES,
+            sources: { type: "array", items: { type: "string" } },
+          },
+        },
         impact: { type: "string", description: "What this means for the delivery promise, if anything." },
         urgency: { type: "string", enum: ["now", "today", "can_wait"] },
       },
@@ -329,7 +384,15 @@ const tools: Tool[] = [
     async run(args, ctx) {
       const recommendation = (args.recommendation ?? {}) as Record<string, unknown>
       const facts = Array.isArray(args.facts) ? args.facts as { text?: unknown; sources?: unknown }[] : null
-      const cited = (facts ?? []).flatMap((fact) => Array.isArray(fact.sources) ? fact.sources.map(String) : [])
+      const deadlines = Array.isArray(args.deadlines) ? args.deadlines as { at?: unknown; what?: unknown; sources?: unknown }[] : []
+      const planB = (args.plan_b ?? null) as { trigger?: unknown; summary?: unknown; sources?: unknown } | null
+      const listOf = (value: unknown) => Array.isArray(value) ? value.map(String) : []
+      const alternatives = Array.isArray(args.alternatives) ? args.alternatives as Record<string, unknown>[] : []
+      const cited = [
+        ...(facts ?? []).flatMap((fact) => listOf(fact.sources)),
+        ...deadlines.flatMap((deadline) => listOf(deadline.sources)),
+        ...listOf(planB?.sources),
+      ]
       const unseen = unseenSources(cited, ctx)
       const problems = [
         !str(args.headline) && "headline is missing",
@@ -339,13 +402,20 @@ const tools: Tool[] = [
         facts?.some((fact) => !Array.isArray(fact.sources) || !fact.sources.length) && "every fact needs at least one source; if you have none, move it to unknowns",
         unseen.length > 0 && `these sources were not returned by any tool on this case: ${unseen.join(", ")}. Cite only ids you have seen, or drop the fact`,
         !isActionKind(recommendation.action) && `recommendation.action must be one of ${ACTION_KINDS.join(", ")}`,
+        !CERTAINTY.includes(str(recommendation.certainty)) && `recommendation.certainty must be one of ${CERTAINTY.join(", ")}`,
+        alternatives.some((option) => option.certainty !== undefined && !CERTAINTY.includes(str(option.certainty))) && `each alternative's certainty must be one of ${CERTAINTY.join(", ")}`,
+        [recommendation, ...alternatives].some((option) => option.arrives_at !== undefined && !isTime(option.arrives_at)) && "arrives_at must be an ISO 8601 time",
+        args.urgency !== "can_wait" && !deadlines.length && "deadlines is empty; say what must happen before when (at least the delivery promise and the last safe moment for your plan)",
+        deadlines.some((deadline) => !isTime(deadline.at) || !str(deadline.what) || !listOf(deadline.sources).length) && "every deadline needs an ISO time in at, a what, and a source",
+        args.urgency !== "can_wait" && (!planB || !str(planB.trigger) || !str(planB.summary)) && "plan_b is missing; prepare the fallback (look it up) and say when we would switch to it",
       ].filter(Boolean)
       if (problems.length) return { content: { error: `Not handed over: ${problems.join("; ")}. Fix and try again.` }, summary: `Hand-over sent back by the checker: ${problems.join("; ")}` }
       const action = recommendation.action as keyof typeof ACTIONS
       return {
         content: { ok: true, note: "Handed to a person. Wait for their decision." },
         summary: `Asked a person to decide: ${ACTIONS[action].label.toLowerCase()}`,
-        finish: { status: "needs_person", headline: str(args.headline), pendingDecision: args },
+        // Earliest deadline first, so the desk can count down to the next one.
+        finish: { status: "needs_person", headline: str(args.headline), pendingDecision: { ...args, deadlines: [...deadlines].sort((a, b) => String(a.at).localeCompare(String(b.at))) } },
       }
     },
   },

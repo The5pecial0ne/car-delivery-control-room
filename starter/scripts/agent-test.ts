@@ -44,7 +44,9 @@ const scripted: CompleteFn = async ({ model, messages }) => {
       headline: "Bentley stopped near Göttingen, driver safe. Call the dealer: their roadside help or a tow?",
       situation: "The driver stopped at a service area with a red warning light.",
       facts: [{ text: "Driver is safe at Rasthof Göttingen", sources: [source] }],
-      recommendation: { action: "book_roadside_assistance", summary: "Book roadside assistance to the service area." },
+      recommendation: { action: "book_roadside_assistance", summary: "Book roadside assistance to the service area.", certainty: "quoted", cost_eur: 150 },
+      deadlines: [{ at: "2026-10-21T12:00:00Z", what: "Driver has to leave for their train", sources: [source] }],
+      plan_b: { trigger: "If roadside help cannot fix it on the spot", summary: "Flatbed to the nearest workshop.", sources: [source] },
       urgency: "now",
     })],
   }
