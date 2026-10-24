@@ -9,9 +9,9 @@ import type { Certainty, Option } from "./labels"
 export type Priority = "speed" | "cost" | "certainty"
 
 export const PRIORITIES: { key: Priority; label: string; tradeOff: string }[] = [
-  { key: "speed", label: "Speed", tradeOff: "The best option protects the delivery promise, even if it costs more." },
-  { key: "cost", label: "Cost", tradeOff: "The best option avoids unnecessary ferry, hotel or driver cost, even if it risks a delay." },
-  { key: "certainty", label: "Certainty", tradeOff: "The best option waits for verified information rather than acting on an unconfirmed claim." },
+  { key: "speed", label: "Speed", tradeOff: "Protect the delivery promise where possible, even if recovery costs more." },
+  { key: "cost", label: "Cost", tradeOff: "Avoid unnecessary ferry, hotel or driver cost, even if it risks a delay." },
+  { key: "certainty", label: "Certainty", tradeOff: "Wait for verified information rather than act on an unconfirmed claim." },
 ]
 
 export const isPriority = (value: unknown): value is Priority => value === "speed" || value === "cost" || value === "certainty"

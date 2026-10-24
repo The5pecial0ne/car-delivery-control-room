@@ -1,12 +1,13 @@
 "use client"
 
 // "Site pattern detected": shown on an order and on its case when the pickup
-// or delivery place keeps causing the same kind of trouble.
+// or delivery place keeps causing the same kind of trouble. One line by
+// default; the advice and the other orders open underneath.
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import type { SitePattern } from "@/lib/agent/patterns"
-import { Icon } from "./icons"
+import { Disclosure } from "./disclosure"
 
 export function SitePatternNotice({ orderId }: { orderId: string }) {
   const [patterns, setPatterns] = useState<SitePattern[]>([])
@@ -21,14 +22,17 @@ export function SitePatternNotice({ orderId }: { orderId: string }) {
   if (!patterns.length) return null
   return <>{patterns.map((pattern) => {
     const others = new Set(pattern.signals.filter((signal) => signal.orderId !== orderId).map((signal) => signal.orderId))
-    return <aside className="site-pattern" key={pattern.siteId} aria-label="Site pattern">
-      <p className="site-pattern-label"><Icon name="building" size={14} /> Site pattern detected</p>
-      <p className="site-pattern-head">
-        <b>{pattern.troubledOrders} of {pattern.orders} recent orders</b> at <Link href={`/sites/${pattern.siteId}`}>{pattern.siteName}</Link> needed a manual check
-        {pattern.themes.length > 0 && <>: {pattern.themes.slice(0, 3).map((theme) => theme.label.toLowerCase()).join(", ")}</>}.
-      </p>
-      <p className="site-pattern-advice">Recommendation: {pattern.themes[0]?.advice}{pattern.themes[1] && pattern.themes[1].theme !== "contact" ? ` ${pattern.themes[1].advice}` : ""}</p>
-      {others.size > 0 && <p className="site-pattern-orders">Seen on {[...others].map((id, index) => <span key={id}>{index ? ", " : ""}<Link className="ref-link" href={`/orders/${id}`}>{id}</Link></span>)}</p>}
-    </aside>
+    const themes = pattern.themes.slice(0, 3).map((theme) => theme.label.toLowerCase()).join(", ")
+    return <Disclosure key={pattern.siteId} tone="agent" action="Show pattern"
+      summary={<><b>Site pattern:</b> {pattern.troubledOrders} of {pattern.orders} recent orders at {pattern.siteName} needed a manual check{themes ? ` (${themes})` : ""}.</>}>
+      <aside className="site-pattern" aria-label="Site pattern">
+        <p className="site-pattern-head">
+          <b>{pattern.troubledOrders} of {pattern.orders} recent orders</b> at <Link href={`/sites/${pattern.siteId}`}>{pattern.siteName}</Link> needed a manual check
+          {themes && <>: {themes}</>}.
+        </p>
+        <p className="site-pattern-advice">Recommendation: {pattern.themes[0]?.advice}{pattern.themes[1] && pattern.themes[1].theme !== "contact" ? ` ${pattern.themes[1].advice}` : ""}</p>
+        {others.size > 0 && <p className="site-pattern-orders">Seen on {[...others].map((id, index) => <span key={id}>{index ? ", " : ""}<Link className="ref-link" href={`/orders/${id}`}>{id}</Link></span>)}</p>}
+      </aside>
+    </Disclosure>
   })}</>
 }

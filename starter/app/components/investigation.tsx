@@ -24,6 +24,21 @@ export function findingsOf(steps: StepLike[]): FindingsData[] {
   return steps.filter((step) => step.kind === "findings" && step.data.args).map((step) => step.data.args as FindingsData)
 }
 
+/** How much the agent checked, in numbers a person can take in at a glance. */
+export function evidenceCount(findings: FindingsData | undefined) {
+  if (!findings) return null
+  const sources = new Set<string>()
+  findings.facts.forEach((fact) => fact.sources?.forEach((ref) => sources.add(ref)))
+  findings.conflicts?.forEach((conflict) => conflict.sides.forEach((side) => sources.add(side.source)))
+  return {
+    sources: sources.size,
+    facts: findings.facts.length,
+    conflicts: findings.conflicts?.filter((conflict) => !conflict.resolved).length ?? 0,
+    unknown: findings.facts.filter((fact) => fact.status === "unknown").length,
+    answered: !!findings.key_question?.answer,
+  }
+}
+
 const WHO = { driver: "the driver", pickup_contact: "the pickup site", customer: "the customer (a person calls)", nobody: "" }
 const STATUS: { key: FactStatus; label: string; note: string }[] = [
   { key: "confirmed", label: "Confirmed", note: "checked by someone who knows" },

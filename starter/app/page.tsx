@@ -14,7 +14,7 @@ import { AppFrame } from "./components/app-frame"
 import type { CaseSummary } from "./components/case-view"
 import { Icon } from "./components/icons"
 import { OrderFocus } from "./components/order-focus"
-import { QueueCard, WatchCard } from "./components/queue-cards"
+import { cardDeadline, QueueCard, WatchCard } from "./components/queue-cards"
 
 type Demo = { orderId: string; title: string; open: boolean }
 type Listing = { cases: CaseSummary[]; demos: Demo[]; snapshotAt: string | null }
@@ -70,7 +70,13 @@ export default function ControlRoom() {
   const selectedCard = selected ? known.current.get(selected) ?? null : null
   const selectedCase = selected ? cases.get(selected) ?? null : null
   const problem = selectedCard && needsAttention(selectedCard, selectedCase)
-    ? { title: (selectedCase?.status === "needs_person" ? selectedCase.headline : null) ?? selectedCard.attention[0]?.title ?? "Waiting for a decision", tone: selectedCard.attentionTone }
+    ? {
+        title: (selectedCase?.status === "needs_person" ? selectedCase.headline : null) ?? selectedCard.attention[0]?.title ?? "Waiting for a decision",
+        detail: selectedCard.attention[0]?.detail ?? null,
+        more: Math.max(0, selectedCard.attention.length - 1),
+        tone: selectedCard.attentionTone,
+        deadline: cardDeadline(selectedCard, selectedCase, snapshotAt, wall),
+      }
     : null
 
   // Start on the order in the address, or the most pressing one. Older links point at a case.

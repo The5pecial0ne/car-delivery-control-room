@@ -17,6 +17,19 @@ import { Icon } from "./icons"
 const SEVERITY_ICON: Record<Tone, string> = { danger: "alert", warn: "alert", accent: "driver", neutral: "note", ok: "check" }
 const lower = (text: string) => text.charAt(0).toLowerCase() + text.slice(1)
 
+/** The deadline a card leads with: the agent's next countdown when it waits on a decision, else the order's decisive date. */
+export function cardDeadline(card: BoardCard, agentCase: CaseSummary | null | undefined, snapshotAt: string | null, wall: number): { text: string; tone: Tone } | null {
+  const decision = agentCase?.status === "needs_person" ? agentCase.pendingDecision : null
+  const next = decision && agentCase ? nextDeadline(decision.deadlines, caseNow(snapshotAt, agentCase.createdAt, wall)) : null
+  if (next && agentCase) {
+    const left = countdown(next.at, caseNow(snapshotAt, agentCase.createdAt, wall))
+    return { text: `${left.left} left`, tone: left.tone }
+  }
+  const date = card.decisive
+  if (!date) return null
+  return { text: date.note && /^in /.test(date.note) ? `${date.label.toLowerCase()} ${date.note}` : `${date.label.toLowerCase()} ${dateText(date.start, date.end, date.zone)}`, tone: date.tone }
+}
+
 export function QueueCard({ card, agentCase, snapshotAt, wall, active, onSelect }: {
   card: BoardCard; agentCase?: CaseSummary; snapshotAt: string | null; wall: number; active: boolean; onSelect: (id: string) => void
 }) {
@@ -31,15 +44,7 @@ export function QueueCard({ card, agentCase, snapshotAt, wall, active, onSelect 
     : agentCase?.status === "failed" ? "The agent stopped before it finished. Someone needs to pick it up."
     : first ? `${first.detail ?? (first.owner ? `${first.owner} owns the next step.` : first.short)}${more}` : null
 
-  let deadline: { text: string; tone: Tone } | null = null
-  const next = decision && agentCase ? nextDeadline(decision.deadlines, caseNow(snapshotAt, agentCase.createdAt, wall)) : null
-  if (next && agentCase) {
-    const left = countdown(next.at, caseNow(snapshotAt, agentCase.createdAt, wall))
-    deadline = { text: `${left.left} left`, tone: left.tone }
-  } else if (card.decisive) {
-    const date = card.decisive
-    deadline = { text: date.note && /^in /.test(date.note) ? `${date.label.toLowerCase()} ${date.note}` : `${date.label.toLowerCase()} ${dateText(date.start, date.end, date.zone)}`, tone: date.tone }
-  }
+  const deadline = cardDeadline(card, agentCase, snapshotAt, wall)
 
   const proposal = card.attention.find((item) => item.kind === "proposal")
   const checked = agentCase?.status === "needs_person" ? `${decision?.facts?.length ?? 0} facts with sources${decision?.unknowns?.length ? `, ${decision.unknowns.length} still unknown` : ""}`

@@ -63,21 +63,22 @@ export function PrioritySwitch({ priority, onChange }: { priority: Priority; onC
   const current = PRIORITIES.find((item) => item.key === priority)
   return <div className="priority">
     <div className="priority-row">
-      <span className="priority-label" id="priority-label">What matters most today</span>
+      <span className="priority-label" id="priority-label">What should we optimise for?</span>
       <div className="priority-switch" role="radiogroup" aria-labelledby="priority-label">
         {PRIORITIES.map((item) => <button key={item.key} type="button" role="radio" aria-checked={priority === item.key} className={priority === item.key ? "on" : undefined} onClick={() => onChange(item.key)}>
           {priority === item.key && <Icon name="check" size={12} />}{item.label}
         </button>)}
       </div>
     </div>
-    {current && <p className="priority-trade">{current.tradeOff}</p>}
+    {current && <p className="priority-trade"><b>{current.label}:</b> {current.tradeOff}</p>}
   </div>
 }
 
 const euro = (value: number) => value.toLocaleString("en-GB", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })
 const CERTAINTY_NOTE: Record<Certainty, string> = { confirmed: "rests on confirmed facts", quoted: "quoted, not booked", uncertain: "not confirmed by anyone" }
+export const priorityLabel = (priority: Priority) => PRIORITIES.find((item) => item.key === priority)?.label ?? priority
 
-type Row = {
+export type Row = {
   key: string
   tag: string | null
   title: string
@@ -89,112 +90,143 @@ type Row = {
   certainty: Certainty | null
   risk: string | null
   approval: boolean
+  option?: Option
 }
 
-function OptionRows({ rows, priority, action }: { rows: Row[]; priority: Priority; action: (row: Row, rank: number) => React.ReactNode }) {
-  const label = PRIORITIES.find((item) => item.key === priority)?.label.toLowerCase()
-  return <ol className="options">{rows.map((row, rank) => <li key={row.key} className={rank === 0 ? "option best" : "option"}>
-    <div className="option-head">
-      <span className="option-rank num" aria-label={`Rank ${rank + 1}`}>{rank + 1}</span>
-      <div className="option-title">
-        <span className="option-kicker">{rank === 0 ? `Best for ${label}` : `Option ${rank + 1}`}{row.tag ? ` · ${row.tag}` : ""}</span>
-        <b>{row.title}</b>
-      </div>
-      <div className="option-act">{action(row, rank)}</div>
-    </div>
+/** Delivery, cost, certainty and approval for one option, in one compact row. */
+export function OptionImpact({ row }: { row: Row }) {
+  return <dl className="option-impact">
+    <div><dt>Delivery</dt><dd>{row.arrives ?? "No new arrival time"}</dd></div>
+    <div><dt>Cost</dt><dd>{row.cost ?? "No estimate"}{row.costBasis && <small>{row.costBasis}</small>}</dd></div>
+    <div><dt>Certainty</dt><dd>{row.certainty ? <>{CERTAINTY_LABEL[row.certainty]}<small>{CERTAINTY_NOTE[row.certainty]}{row.risk ? `. ${row.risk}` : ""}</small></> : "Not stated"}</dd></div>
+    <div><dt>Approval</dt><dd>{row.approval ? "Needs your approval" : "The agent may do this alone"}</dd></div>
+  </dl>
+}
+
+/** The recommended option for the chosen priority, shown in full with its actions. */
+export function BestOption({ row, priority, children, note }: { row: Row; priority: Priority; children: React.ReactNode; note?: React.ReactNode }) {
+  return <div className="best-option">
+    <p className="best-kicker"><Icon name="flag" size={13} />Recommended for {priorityLabel(priority).toLowerCase()}{row.tag ? <span> · {row.tag}</span> : null}</p>
+    <h3 className="best-title">{row.title}</h3>
     <p className="option-why">{row.why}</p>
-    {row.summary && <p className="option-summary">{row.summary}</p>}
-    <dl className="option-impact">
-      <div><dt>Delivery</dt><dd>{row.arrives ?? "No new arrival time"}</dd></div>
-      <div><dt>Cost</dt><dd>{row.cost ?? "No estimate"}{row.costBasis && <small>{row.costBasis}</small>}</dd></div>
-      <div><dt>Certainty</dt><dd>{row.certainty ? <>{CERTAINTY_LABEL[row.certainty]}<small>{CERTAINTY_NOTE[row.certainty]}{row.risk ? `. ${row.risk}` : ""}</small></> : "Not stated"}</dd></div>
-      <div><dt>Approval</dt><dd>{row.approval ? "Needs your approval" : "The agent may do this alone"}</dd></div>
-    </dl>
-  </li>)}</ol>
+    {row.summary && row.summary !== row.title && <p className="option-summary">{row.summary}</p>}
+    <OptionImpact row={row} />
+    {note}
+    <div className="best-actions">{children}</div>
+  </div>
 }
 
-/** The agent's own hand-over options, ranked by the operator's priority. */
-export function AgentOptions({ decision, zone, priority, busy, approveLabel, onApprove, onChoose }: {
-  decision: Decision; zone: string; priority: Priority; busy: boolean; approveLabel: string
-  onApprove: () => void; onChoose: (option: Option, tag: string) => void
-}) {
-  const options = useMemo(() => {
-    const list: { option: Option; tag: string }[] = []
-    if (decision.recommendation) list.push({ option: decision.recommendation, tag: "Agent's pick" })
-    decision.alternatives?.forEach((option, index) => list.push({ option, tag: `Alternative ${index + 1}` }))
-    if (decision.plan_b) list.push({ option: decision.plan_b, tag: "Plan B" })
-    return list
-  }, [decision])
-  const ranked = useMemo(() => rankOptions(options, priority), [options, priority])
-  if (options.length < 2) return null
+/** The other options, ranked, folded under one line. */
+export function OtherOptions({ rows, priority, action }: { rows: Row[]; priority: Priority; action: (row: Row) => React.ReactNode }) {
+  if (!rows.length) return null
+  return <details className="fold other-options">
+    <summary>
+      <span className="fold-summary">{rows.length} other option{rows.length === 1 ? "" : "s"}, ranked for {priorityLabel(priority).toLowerCase()}: {rows.map((row) => row.title).join(" · ")}</span>
+      <span className="fold-action"><span className="fold-show">Compare</span><span className="fold-hide">Hide</span><Icon name="chevron" size={12} /></span>
+    </summary>
+    <ol className="options">{rows.map((row, at) => <li key={row.key} className="option">
+      <div className="option-head">
+        <span className="option-rank num" aria-label={`Rank ${at + 2}`}>{at + 2}</span>
+        <div className="option-title">
+          {row.tag && <span className="option-kicker">{row.tag}</span>}
+          <b>{row.title}</b>
+        </div>
+        <div className="option-act">{action(row)}</div>
+      </div>
+      <p className="option-why">{row.why}</p>
+      {row.summary && row.summary !== row.title && <p className="option-summary">{row.summary}</p>}
+      <OptionImpact row={row} />
+    </li>)}</ol>
+  </details>
+}
+
+/** The agent's own hand-over options (its pick, the alternatives and its Plan B), ranked by the operator's priority. */
+export function agentRows(decision: Decision, priority: Priority, zone: string): Row[] {
+  const options: { option: Option; tag: string }[] = []
+  if (decision.recommendation) options.push({ option: decision.recommendation, tag: "Agent's pick" })
+  decision.alternatives?.forEach((option, index) => options.push({ option, tag: `Alternative ${index + 1}` }))
+  if (decision.plan_b) options.push({ option: decision.plan_b, tag: "Plan B" })
   const all = options.map((item) => item.option)
-  const rows: Row[] = ranked.map(({ option, tag }, rank) => ({
-    // "Something else" says nothing, so an option without a known action is named by its own first sentence.
-    key: tag, tag, title: option.action && option.action !== "other" ? actionLabel(option.action) : (option.summary?.split(/(?<=[.!?])\s/)[0] ?? actionLabel(option.action)), summary: option.summary ?? null, why: whyFor(option, all, priority, rank === 0),
+  // "Something else" says nothing, so an option without a known action is named by its own first sentence.
+  // The first option with an action keeps its short name; later ones with the same action are told apart by their summary.
+  const titleOf = (option: Option) => option.action && option.action !== "other" && all.find((item) => item.action === option.action) === option
+    ? actionLabel(option.action) : (option.summary?.split(/(?<=[.!?])\s/)[0] ?? actionLabel(option.action))
+  return rankOptions(options, priority).map(({ option, tag }, rank) => ({
+    key: tag, tag, option,
+    title: titleOf(option),
+    summary: option.summary ?? null, why: whyFor(option, all, priority, rank === 0),
     arrives: option.arrives_at ? `${clockIn(option.arrives_at, zone)} ${cityOfZone(zone)} time` : null,
     cost: option.cost_eur != null ? euro(option.cost_eur) : null, costBasis: null, certainty: option.certainty ?? null, risk: null,
     approval: needsApproval(option.action),
   }))
-  return <section className="recovery-options" aria-label="Recovery options">
-    <OptionRows rows={rows} priority={priority} action={(row) => row.tag === "Agent's pick"
-      ? <button type="button" className="btn primary small" disabled={busy} onClick={onApprove}>{approveLabel}</button>
-      : <button type="button" className="btn small" disabled={busy} onClick={() => { const found = options.find((item) => item.tag === row.tag); if (found) onChoose(found.option, found.tag) }}>Choose this</button>} />
-  </section>
 }
 
 /** Options from the prepared Plan B, for an order the agent has no hand-over on yet. */
 export function PreparedOptions({ plan, priority, busy, onHandOver }: {
   plan: RankedPlanB; priority: Priority; busy: boolean | string; onHandOver: ((title: string) => void) | null
 }) {
-  const rows: Row[] = plan.options.map((option) => ({
+  const rows: Row[] = useMemo(() => plan.options.map((option) => ({
     key: option.id, tag: null, title: option.title, summary: option.summary, why: option.why,
     arrives: option.delivery, cost: option.cost_eur != null ? option.cost_eur === 0 ? "No extra cost" : `About ${euro(option.cost_eur)}` : null,
     costBasis: option.cost_basis, certainty: option.certainty, risk: option.risk, approval: option.needs_approval,
-  }))
+  })), [plan])
   if (!rows.length) return null
-  return <section className="recovery-options" aria-label="Recovery options">
-    <OptionRows rows={rows} priority={priority} action={(row) => onHandOver
-      ? <button type="button" className={`btn small${row === rows[0] ? " primary" : ""}`} disabled={!!busy} onClick={() => onHandOver(row.title)}>Hand to the agent</button>
-      : typeof busy === "string" ? <span className="option-wait">{busy}</span> : null} />
-    {onHandOver && <p className="recovery-note"><Icon name="note" size={13} />Handing over starts an agent case with this option and your priority. The agent investigates first and comes back with one decision. Nothing is booked, cancelled or sent without your yes.</p>}
-    <p className="recovery-note subtle">Times and costs come from the order's records and the agent's quote tools. Quotes are simulated for this demo and marked as estimates where they are not on the order.</p>
+  const act = (row: Row, primary: boolean) => onHandOver
+    ? <button type="button" className={`btn${primary ? " primary" : " small"}`} disabled={!!busy} onClick={() => onHandOver(row.title)}>{primary && <Icon name="bot" size={14} />}Hand to the agent</button>
+    : typeof busy === "string" ? <span className="option-wait">{busy}</span> : null
+  return <section className="recovery-options" aria-label="Recommended recovery">
+    <BestOption row={rows[0]} priority={priority}
+      note={onHandOver && <p className="recovery-note"><Icon name="note" size={13} />The agent investigates first and comes back with one decision. Nothing is booked, cancelled or sent without your yes.</p>}>
+      {act(rows[0], true)}
+    </BestOption>
+    <OtherOptions rows={rows.slice(1)} priority={priority} action={(row) => act(row, false)} />
   </section>
 }
 
 const CHECK_ICON: Record<string, string> = { ferry: "ferry", driver: "driver", hotel: "hotel", promise: "flag", next: "check" }
 const CHECK_STATE: Record<string, string> = { found: "Found", none: "Nothing found", not_needed: "Not needed", unknown: "Unknown" }
 
-/** The shadow plan: what the agent's tools looked up, and the boundary it stays inside. */
+/** The shadow plan in one line, with what the agent's tools looked up folded underneath. */
 export function PlanBPanel({ state, onRefresh, agentPlan, onSwitch, busy, zone }: {
   state: PlanState; onRefresh: () => void; agentPlan?: Decision["plan_b"]; onSwitch?: () => void; busy?: boolean; zone: string
 }) {
   const plan = state.plan
   const title = state.state === "loading" ? "Preparing Plan B…" : state.state === "error" ? "Plan B could not be prepared"
     : state.state === "insufficient" ? "No safe Plan B yet" : "Plan B is ready"
+  const found = plan?.checks.filter((check) => check.status === "found" && check.key !== "next" && check.key !== "promise").map((check) => check.label.toLowerCase()) ?? []
+  const alternatives = plan ? plan.options.filter((option) => option.action !== "hold_and_wait").length : 0
+  const line = state.state === "loading" ? "Looking up later sailings, backup drivers, hotels and the delivery promise."
+    : state.state === "error" ? `${state.error}. Try again, or open the full record.`
+    : plan?.reason ?? (found.length ? `Found ${found.join(", ")}: ${alternatives} alternative${alternatives === 1 ? "" : "s"} to the current plan.` : "Nothing usable turned up.")
   return <section className={`planb planb-${state.state}`} aria-label="Plan B" aria-busy={state.state === "loading"}>
     <header className="planb-head">
       <h3><Icon name={state.state === "ready" ? "flag" : state.state === "loading" ? "waiting" : "alert"} size={14} />{title}</h3>
       <button type="button" className="btn quiet small" onClick={onRefresh} disabled={state.state === "loading"}>Check again</button>
     </header>
-    {state.state === "loading" && <p className="planb-status"><span className="pulse" aria-hidden="true" />Looking up later sailings, backup drivers, hotels and the delivery promise.</p>}
-    {state.state === "error" && <p className="planb-status">{state.error}. Try again, or open the full record.</p>}
-    {plan?.reason && state.state !== "loading" && <p className="planb-status">{plan.reason}</p>}
+    <p className="planb-status">{state.state === "loading" && <span className="pulse" aria-hidden="true" />}{line} <b className="planb-safe">Nothing booked or sent.</b></p>
     {agentPlan?.summary && <div className="planb-agent">
-      <span className="planb-agent-label">The agent's Plan B</span>
-      <p>{agentPlan.summary}</p>
+      <p><span className="planb-agent-label">The agent's Plan B:</span> {agentPlan.summary}</p>
       {agentPlan.trigger && <p className="planb-trigger">Switch when: {agentPlan.trigger}</p>}
-      {!!agentPlan.steps?.length && <ol>{agentPlan.steps.map((step, index) => <li key={index}>{step}</li>)}</ol>}
-      {agentPlan.arrives_at && <p className="planb-meta">Arrives {clockIn(agentPlan.arrives_at, zone)} {cityOfZone(zone)} time{agentPlan.cost_eur != null ? ` · ${euro(agentPlan.cost_eur)}` : ""}{agentPlan.certainty ? ` · ${CERTAINTY_LABEL[agentPlan.certainty]}` : ""}</p>}
       {onSwitch && <button type="button" className="btn small" disabled={busy} onClick={onSwitch}>Switch to Plan B now</button>}
     </div>}
-    {plan && plan.checks.length > 0 && <ul className="planb-checks">{plan.checks.map((check) => <li key={check.key} className={`planb-check is-${check.status}`}>
-      <Icon name={CHECK_ICON[check.key] ?? "dot"} size={14} />
-      <span className="planb-check-label">{check.label}</span>
-      <span className="planb-check-state">{CHECK_STATE[check.status]}</span>
-      <span className="planb-check-text">{check.text}</span>
-    </li>)}</ul>}
-    <p className="planb-boundary"><Icon name="check" size={13} />{plan?.boundary ?? "Nothing has been booked, cancelled or sent."}</p>
-    {plan && <p className="planb-meta">Prepared {new Date(plan.preparedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} by the agent's lookup tools, from the order as recorded at the snapshot. No AI model was needed for this step.</p>}
+    {plan && (plan.checks.length > 0 || agentPlan) && <details className="fold planb-more">
+      <summary>
+        <span className="fold-summary">{plan.checks.length} checks: {plan.checks.map((check) => `${check.label} ${CHECK_STATE[check.status].toLowerCase()}`).join(" · ")}</span>
+        <span className="fold-action"><span className="fold-show">Show what was checked</span><span className="fold-hide">Hide</span><Icon name="chevron" size={12} /></span>
+      </summary>
+      <div className="fold-body">
+        {!!agentPlan?.steps?.length && <ol className="planb-steps">{agentPlan.steps.map((step, index) => <li key={index}>{step}</li>)}</ol>}
+        {agentPlan?.arrives_at && <p className="planb-meta">The agent's Plan B arrives {clockIn(agentPlan.arrives_at, zone)} {cityOfZone(zone)} time{agentPlan.cost_eur != null ? ` · ${euro(agentPlan.cost_eur)}` : ""}{agentPlan.certainty ? ` · ${CERTAINTY_LABEL[agentPlan.certainty]}` : ""}</p>}
+        <ul className="planb-checks">{plan.checks.map((check) => <li key={check.key} className={`planb-check is-${check.status}`}>
+          <Icon name={CHECK_ICON[check.key] ?? "dot"} size={14} />
+          <span className="planb-check-label">{check.label}</span>
+          <span className="planb-check-state">{CHECK_STATE[check.status]}</span>
+          <span className="planb-check-text">{check.text}</span>
+        </li>)}</ul>
+        <p className="planb-boundary"><Icon name="check" size={13} />{plan.boundary}</p>
+        <p className="planb-meta">Prepared {new Date(plan.preparedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} by the agent's lookup tools, from the order as recorded at the snapshot. Quotes are simulated for this demo and marked as estimates where they are not on the order. No AI model was needed for this step.</p>
+      </div>
+    </details>}
   </section>
 }
 
