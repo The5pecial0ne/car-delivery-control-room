@@ -6,7 +6,7 @@
 // that is what the person came for.
 
 import Link from "next/link"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { actionLabel, isPersonLed, parseSource, URGENCY, type Decision } from "@/lib/agent/labels"
 import { fmtClock } from "@/lib/present/time"
 import { zoneForCity } from "@/lib/agent/clock"
@@ -43,18 +43,24 @@ async function post(url: string, body: unknown) {
   if (!response.ok) throw new Error((await response.json().catch(() => ({})) as { error?: string }).error ?? "Something went wrong")
 }
 
-export function CaseView({ summary, snapshotAt, onBack, onChange }: { summary: CaseSummary; snapshotAt: string | null; onBack: () => void; onChange: () => void }) {
+export type CaseData = { case: CaseSummary; steps: Step[] }
+
+export function CaseView({ summary, snapshotAt, onBack, onChange, onLoaded }: { summary: CaseSummary; snapshotAt: string | null; onBack: () => void; onChange: () => void; onLoaded?: (data: CaseData) => void }) {
   const [steps, setSteps] = useState<Step[] | null>(null)
   const [detail, setDetail] = useState<CaseSummary>(summary)
   const [error, setError] = useState("")
+  const loaded = useRef(onLoaded)
+  useEffect(() => { loaded.current = onLoaded }, [onLoaded])
 
   const load = useCallback(async () => {
     const response = await fetch(`/api/cases/${summary.id}`, { cache: "no-store" })
     if (!response.ok) { setError("Could not load this case"); return }
-    const data = await response.json() as { case: CaseSummary; steps: Step[] }
+    const data = await response.json() as CaseData
     setDetail((old) => ({ ...old, ...data.case }))
     setSteps(data.steps)
     setError("")
+    // The order timeline above the case follows the same steps.
+    loaded.current?.(data)
   }, [summary.id])
 
   const live = detail.status === "working" || detail.running

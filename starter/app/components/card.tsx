@@ -45,7 +45,7 @@ export function Card({ card, role }: { card: BoardCard; role?: string | null }) 
   </div>
 }
 
-function dateText(start: string, end: string | null, zone: string | null): string {
+export function dateText(start: string, end: string | null, zone: string | null): string {
   const day = fmtWeekday(start, zone)
   const from = fmtDateTime(start, zone, false).split(" ").pop() ?? ""
   if (!end) return `${day} ${from}`

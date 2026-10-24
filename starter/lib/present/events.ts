@@ -239,5 +239,5 @@ export function describeEvent(event: EventRow, bundle: Bundle): HistoryEvent {
   }
 
   const named = actorName ? text.includes(actorName) : false
-  return { id: event.id, at: event.recordedAt, text, actor: named ? null : actorName, detail, shared }
+  return { id: event.id, command: event.command, at: event.recordedAt, text, actor: named ? null : actorName, detail, shared }
 }
