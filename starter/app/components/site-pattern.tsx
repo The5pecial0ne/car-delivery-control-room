@@ -23,7 +23,7 @@ export function SitePatternNotice({ orderId }: { orderId: string }) {
   return <>{patterns.map((pattern) => {
     const others = new Set(pattern.signals.filter((signal) => signal.orderId !== orderId).map((signal) => signal.orderId))
     const themes = pattern.themes.slice(0, 3).map((theme) => theme.label.toLowerCase()).join(", ")
-    return <Disclosure key={pattern.siteId} tone="agent" action="Show pattern"
+    return <Disclosure key={pattern.siteId} tone="agent" action="View pattern"
       summary={<><b>Site pattern:</b> {pattern.troubledOrders} of {pattern.orders} recent orders at {pattern.siteName} needed a manual check{themes ? ` (${themes})` : ""}.</>}>
       <aside className="site-pattern" aria-label="Site pattern">
         <p className="site-pattern-head">

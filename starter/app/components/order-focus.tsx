@@ -1,9 +1,9 @@
 "use client"
 
 // The workspace for one order, in the order a person decides: what is wrong,
-// how long is left, what to optimise for, what to do, then the journey and
-// Plan B. Evidence, the agent's trace and the order record are one line each
-// and open on request. With an agent case the work is the case itself;
+// how long is left, what to optimise for and what to do. Evidence, Plan B,
+// the journey, the agent's trace and the order record are one line each and
+// open on request. With an agent case the work is the case itself;
 // without one, an order that needs a person still gets ranked options and a
 // prepared Plan B.
 
@@ -13,7 +13,7 @@ import { caseNow, zoneForCity } from "@/lib/agent/clock"
 import type { RankedPlanB } from "@/lib/agent/plan-b"
 import { fmtClock, fmtWeekday } from "@/lib/present/time"
 import type { Tone } from "@/lib/present/types"
-import { CaseView, type CaseData, type CaseSummary } from "./case-view"
+import { CaseHead, CaseView, issueLine, type CaseData, type CaseSummary } from "./case-view"
 import { Disclosure } from "./disclosure"
 import { Icon } from "./icons"
 import { OrderPane, type Detail } from "./order-detail"
@@ -51,7 +51,12 @@ export function OrderFocus({ orderId, agentCase, problem, snapshotAt, onBack, on
   const now = liveCase ? caseNow(snapshotAt, liveCase.createdAt, wall) : undefined
   const header = detail?.view.header
 
-  const timeline = detail && <OrderTimeline view={detail.view} agentCase={liveCase} steps={caseData?.case.id === agentCase?.id ? caseData?.steps : null} now={now} planB={plan} />
+  const title = header ? `${header.vehicle?.title ?? "Vehicle"} · ${header.from.city} → ${header.to.city}` : null
+  // The journey measures itself when it first draws, so it mounts when opened.
+  const timeline = detail && <Disclosure id="delivery-timeline" lazy action="View timeline"
+    summary={<>Full delivery timeline, from order to handover.</>}>
+    <OrderTimeline view={detail.view} agentCase={liveCase} steps={caseData?.case.id === agentCase?.id ? caseData?.steps : null} now={now} planB={plan} />
+  </Disclosure>
   const record = detail && <RecordFold detail={detail} />
 
   return <div className="focus">
@@ -59,8 +64,6 @@ export function OrderFocus({ orderId, agentCase, problem, snapshotAt, onBack, on
       <div className="focus-nav">
         <button type="button" className="mail-back" onClick={onBack}><Icon name="chevron" size={13} style={{ transform: "rotate(180deg)" }} /> All orders</button>
         <span className="focus-ref mono">{header?.reference ?? orderId}</span>
-        {header && <span className="focus-car">{header.vehicle?.title ?? "Vehicle"}</span>}
-        {header && <span className="focus-route">{header.from.city}<Icon name="arrow" size={12} />{header.to.city}</span>}
         {header && <span className="focus-customer">{header.customer.name}</span>}
         <Link className="focus-record-link" href={`/orders/${orderId}`}>Full record<Icon name="arrow" size={12} /></Link>
       </div>
@@ -68,15 +71,12 @@ export function OrderFocus({ orderId, agentCase, problem, snapshotAt, onBack, on
     {error && <p className="board-error focus-error" role="alert">{error}</p>}
     {!detail && !error && <div className="skeleton focus-skeleton" aria-busy="true" />}
 
-    {detail && agentCase && <CaseView key={agentCase.id} summary={agentCase} snapshotAt={snapshotAt} onChange={onChange} onLoaded={onLoaded} onPlan={setPlan} timeline={timeline} after={record} />}
-    {detail && !agentCase && problem && <Recovery orderId={orderId} problem={problem} zone={zoneForCity(header?.to.city)} onPlan={setPlan} onChange={onChange} timeline={timeline} record={record} />}
+    {detail && agentCase && <CaseView key={agentCase.id} summary={agentCase} snapshotAt={snapshotAt} onChange={onChange} onLoaded={onLoaded} onPlan={setPlan} title={title} timeline={timeline} after={record} />}
+    {detail && !agentCase && problem && <Recovery orderId={orderId} problem={problem} title={title ?? orderId} zone={zoneForCity(header?.to.city)} onPlan={setPlan} onChange={onChange} timeline={timeline} record={record} />}
     {detail && !agentCase && !problem && <>
-      <div className="case-top">
-        <p className="case-state"><span className="case-state-main tone-ok"><Icon name="check" size={13} />On track</span></p>
-        <h2 className="case-headline">{detail.view.story.headline}</h2>
-      </div>
-      {timeline}
+      <CaseHead label="On track" tone="ok" title={title ?? orderId} issue={detail.view.story.headline} />
       <div className="folds">
+        {timeline}
         <SitePatternNotice orderId={orderId} />
         {record}
       </div>
@@ -91,7 +91,7 @@ function RecordFold({ detail }: { detail: Detail }) {
   const zone = view.header.to.zone ?? view.header.from.zone
   return <Disclosure id="order-record" action="View full history"
     summary={latest
-      ? <>Latest update: {latest.text}{latest.actor ? `, ${latest.actor}` : ""}, {fmtWeekday(latest.at, zone)} {fmtClock(latest.at, zone)}. <span className="fold-count">{view.historyTotal} events in the record</span></>
+      ? <>Past updates and documents. Latest: {latest.text}{latest.actor ? `, ${latest.actor}` : ""}, {fmtWeekday(latest.at, zone)} {fmtClock(latest.at, zone)}. <span className="fold-count">{view.historyTotal} events in the record</span></>
       : <>Order record: dates, people, travel, documents and history.</>}>
     <section className="focus-record" aria-label="Order record">
       <OrderPane detail={detail} />
@@ -100,8 +100,8 @@ function RecordFold({ detail }: { detail: Detail }) {
 }
 
 /** Recovery for an order the agent has no case on yet: priority, ranked options and Plan B. */
-function Recovery({ orderId, problem, zone, onPlan, onChange, timeline, record }: {
-  orderId: string; problem: Problem; zone: string; onPlan: (plan: RankedPlanB | null) => void; onChange: () => void
+function Recovery({ orderId, problem, title, zone, onPlan, onChange, timeline, record }: {
+  orderId: string; problem: Problem; title: string; zone: string; onPlan: (plan: RankedPlanB | null) => void; onChange: () => void
   timeline: React.ReactNode; record: React.ReactNode
 }) {
   const [priority, setPriority] = usePriority()
@@ -109,12 +109,9 @@ function Recovery({ orderId, problem, zone, onPlan, onChange, timeline, record }
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   return <>
-    <header className="case-top">
-      <p className="case-state"><span className="case-state-main tone-danger"><Icon name="alert" size={13} />Needs attention</span><span>The agent has not opened a case yet</span></p>
-      <h2 className="case-headline">{problem.title}</h2>
-      {problem.detail && <p className="case-situation">{problem.detail}{problem.more ? ` (+${problem.more} more open point${problem.more === 1 ? "" : "s"} on the timeline)` : ""}</p>}
-      {problem.deadline && <p className={`case-countdown tone-${problem.deadline.tone}`}><Icon name="waiting" size={14} /><b>{problem.deadline.text.charAt(0).toUpperCase() + problem.deadline.text.slice(1)}</b></p>}
-    </header>
+    <CaseHead label="Needs attention" tone="danger" title={title}
+      issue={issueLine(problem.title, problem.detail)}
+      deadline={problem.deadline ? { left: null, what: problem.deadline.text.charAt(0).toUpperCase() + problem.deadline.text.slice(1), tone: problem.deadline.tone } : null} />
     <section className="case-decide" id="decide" aria-label="Recovery">
       <PrioritySwitch priority={priority} onChange={setPriority} />
       {planB.state === "loading" && !planB.plan && <p className="recovery-loading"><span className="pulse" aria-hidden="true" />Ranking the options…</p>}
@@ -124,9 +121,9 @@ function Recovery({ orderId, problem, zone, onPlan, onChange, timeline, record }
       }} />}
       {error && <p className="board-error" role="alert">{error}</p>}
     </section>
-    {timeline}
-    <PlanBPanel state={planB} onRefresh={planB.refresh} zone={zone} />
     <div className="folds">
+      <PlanBPanel state={planB} onRefresh={planB.refresh} zone={zone} />
+      {timeline}
       <SitePatternNotice orderId={orderId} />
       {record}
     </div>
