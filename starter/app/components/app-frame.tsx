@@ -22,7 +22,12 @@ const GROUPS: { label: string; links: { section: Section; href: string; label: s
 export function AppFrame({ children, section, snapshotAt, board = false }: { children: ReactNode; section: Section; snapshotAt?: string | null; board?: boolean }) {
   return <div className={`app${board ? " app-board" : ""}`}>
     <aside className="sidebar">
-      <Link href="/" className="wordmark" aria-label="Control Room home">Control Room</Link>
+      <Link href="/" className="wordmark" aria-label="Bahn Control Room home">
+        {/* The supplied Bahn wordmark, in its dark colourway, which matches the sidebar text. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="wordmark-logo" src="/brand/bahn-logo-dark.svg" alt="Bahn" width={52} height={12} />
+        <span>Control Room</span>
+      </Link>
       <nav className="sidebar-nav" aria-label="Main navigation">
         {GROUPS.map((group) => <div className="nav-group" key={group.label}>
           <div className="nav-label">{group.label}</div>

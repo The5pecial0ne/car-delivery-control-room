@@ -1315,3 +1315,25 @@ a.source:hover { text-decoration: underline; }
 .fold-action { padding: 3px 9px 3px 11px; border: 1px solid var(--sand); border-radius: var(--pill); background: var(--birch); font-size: 12px; }
 .fold > summary:hover .fold-action { border-color: var(--ink); }
 .fold[open] > summary .fold-action { background: var(--canvas); }
+
+/* ══ Bahn touches ══════════════════════════════════════════════════════════
+   The light look stays. Three things change: Manrope for body text and the
+   interface, Poppins for headings, and in the sidebar the Bahn logo, red
+   icons, and black with white text for the page you are on. */
+:root {
+  --font-body: "Manrope", "Poppins", Arial, Helvetica, sans-serif;
+  --font-display: "Poppins", Arial, Helvetica, sans-serif;
+  --bahn-red: #ec0016;
+}
+h1, h2, h3, h4, .page-title { font-family: var(--font-display); }
+button, input, textarea, select { font-family: var(--font-body); }
+
+.wordmark { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 14px; }
+.wordmark-logo { display: block; flex: none; width: 52px; height: auto; aspect-ratio: 125.98 / 28.37; }
+
+.sidebar .nav-link .icon { color: var(--bahn-red); }
+.sidebar .nav-link.active { background: var(--ink); color: #fff; box-shadow: none; }
+.sidebar .nav-link.active:hover { background: var(--ink); }
+@media (max-width: 900px) {
+  .sidebar .nav-link.active { box-shadow: none; }
+}
