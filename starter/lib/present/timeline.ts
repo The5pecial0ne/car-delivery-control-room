@@ -251,19 +251,45 @@ function agentEntries(agentCase: AgentCaseLike, steps: AgentStepLike[], snapshot
 
 export type Timeline = { entries: TimelineEntry[]; now: string; nowIndex: number; issues: number }
 
+/** What the timeline needs to know about a prepared Plan B. */
+export type PlanBLike = { status: "ready" | "insufficient"; preparedAt: string; checks: { label: string; status: string }[]; options: { title: string }[] }
+
+/**
+ * Plan B and the decision it leads to. It is placed on the same clock as the
+ * rest: the case clock when a case is open, otherwise the snapshot time.
+ */
+function planEntries(plan: PlanBLike, at: string, agentCase: AgentCaseLike | null | undefined): TimelineEntry[] {
+  const found = plan.checks.filter((check) => check.status === "found").map((check) => check.label.toLowerCase())
+  const entries: TimelineEntry[] = [{
+    id: "plan-b", at, state: "agent", label: plan.status === "ready" ? "Plan B ready" : "Plan B not possible",
+    title: plan.status === "ready" ? "Agent prepared Plan B" : "Agent looked for a Plan B and found no safe one",
+    detail: found.length ? `Checked: ${found.join(", ")}. Nothing booked or sent.` : "Nothing booked or sent.", source: "plan-b",
+  }]
+  // With a hand-over open, the decision is already on the timeline.
+  if (plan.status === "ready" && plan.options[0] && agentCase?.status !== "needs_person" && agentCase?.status !== "working") {
+    entries.push({ id: "plan-b-decide", at, state: "decision", label: "Decision needed", title: `Choose a recovery option: best now is "${plan.options[0].title.toLowerCase()}"`, detail: "Or hand it to the agent with your priority.", source: "plan-b" })
+  }
+  return entries
+}
+
 /**
  * The whole timeline, oldest first. `now` is the snapshot time, or the case
  * clock when an agent case is open, so countdowns and the "Now" line agree.
  */
-export function buildTimeline(view: RecordView, options: { agentCase?: AgentCaseLike | null; steps?: AgentStepLike[] | null; now?: number } = {}): Timeline {
-  const { agentCase, steps } = options
+export function buildTimeline(view: RecordView, options: { agentCase?: AgentCaseLike | null; steps?: AgentStepLike[] | null; now?: number; planB?: PlanBLike | null } = {}): Timeline {
+  const { agentCase, steps, planB } = options
   const nowMs = options.now ?? time(view.snapshotAt ?? new Date().toISOString())
   const now = new Date(nowMs).toISOString()
   const deadlines = agentCase?.status === "needs_person" ? agentCase.pendingDecision?.deadlines ?? [] : []
+  // A Plan B prepared during a case sits on the case clock; otherwise at the snapshot, which is "now" for the data.
+  const planAt = planB ? agentCase && view.snapshotAt
+    ? new Date(time(view.snapshotAt) + Math.max(0, time(planB.preparedAt) - time(agentCase.createdAt))).toISOString()
+    : now : null
   const entries = [
     ...orderEntries(view),
     ...openItems(view, view.snapshotAt ?? now),
     ...(agentCase ? agentEntries(agentCase, steps ?? [], view.snapshotAt) : []),
+    ...(planB && planAt ? planEntries(planB, planAt > now ? now : planAt, agentCase) : []),
     ...upcomingEntries(view, nowMs, deadlines),
   ].filter((entry) => !Number.isNaN(time(entry.at)))
     .sort((a, b) => time(a.at) - time(b.at) || Number(a.state === "upcoming") - Number(b.state === "upcoming"))
