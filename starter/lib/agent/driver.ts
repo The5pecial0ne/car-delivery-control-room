@@ -8,6 +8,7 @@ import { and, asc, eq, inArray } from "drizzle-orm"
 import { conversations, drivers, messages, relatedRecords } from "@/lib/schema"
 import { db } from "./conn"
 import { DRIVER_MODEL, type ChatMessage, type CompleteFn } from "./model"
+import { scenarioParts } from "./scenarios"
 import { listSteps, type CaseRow } from "./store"
 
 const DEFAULT_SCENARIO = "Nothing unusual beyond what is already in the chat. If you are asked something the chat does not settle, give a plausible, ordinary answer and keep it consistent afterwards."
@@ -38,6 +39,7 @@ export async function simulateDriverReply(caseRow: CaseRow, complete: CompleteFn
   }
 
   const name = driver?.displayName ?? "the driver"
+  const scenario = scenarioParts(caseRow.scenario).driver
   const system = [
     `You are ${name}, a freelance driver delivering a car for Bahn, a car delivery company. You are chatting with Bahn in the driver app.`,
     "Write like a real person on a phone: one to three short sentences, plain words, no lists, no sign-off.",
@@ -46,10 +48,16 @@ export async function simulateDriverReply(caseRow: CaseRow, complete: CompleteFn
     "You are not a mechanic and you do not diagnose the car. You will not drive on unless Bahn clearly tells you to.",
     "Everything here is fictional.",
     "",
-    `What is really going on right now (private to you): ${caseRow.scenario ?? DEFAULT_SCENARIO}`,
+    `What is really going on right now (private to you): ${scenario ?? DEFAULT_SCENARIO}`,
     "This is the truth as of now. It overrides anything you said earlier in the chat, because things have moved on since. Stay consistent with it in every reply.",
   ].join("\n")
 
+  // A small model drifts back to the old chat ("still in the queue"), so remind
+  // it of where things stand right next to the message it is answering.
+  const last = history.at(-1)
+  if (last?.role === "user" && scenario) {
+    history[history.length - 1] = { role: "user", content: `${last.content}\n\n(Private note to you, not part of Bahn's message: right now, ${scenario})` }
+  }
   const reply = await complete({ model: DRIVER_MODEL, messages: [{ role: "system", content: system }, ...history], temperature: 0.4 })
   return (reply.content ?? "").trim() || "Sorry, can you say that again?"
 }

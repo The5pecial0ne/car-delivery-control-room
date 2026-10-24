@@ -9,6 +9,10 @@ import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { actionLabel, isPersonLed, parseSource, URGENCY, type Decision } from "@/lib/agent/labels"
 import { fmtClock } from "@/lib/present/time"
+import { zoneForCity } from "@/lib/agent/clock"
+import { Deadlines, OptionCompare, PlanBPanel, useCaseNow } from "./decision-extras"
+import { SitePatternNotice } from "./site-pattern"
+import { findingsOf, Investigation } from "./investigation"
 import { Icon } from "./icons"
 import { Chip } from "./ui"
 
@@ -25,7 +29,7 @@ export type CaseSummary = {
   order: { reference: string; customer: string | null; car: string | null; from: string | null; to: string | null } | null
 }
 
-type Step = { id: string; seq: number; actor: "agent" | "driver" | "person" | "system"; kind: string; body: string; data: Record<string, unknown>; createdAt: string }
+type Step = { id: string; seq: number; actor: "agent" | "driver" | "site" | "person" | "system"; kind: string; body: string; data: Record<string, unknown>; createdAt: string }
 
 const STATUS: Record<CaseSummary["status"], { label: string; tone: "warn" | "accent" | "ok" | "danger" }> = {
   needs_person: { label: "Needs your decision", tone: "warn" },
@@ -39,7 +43,7 @@ async function post(url: string, body: unknown) {
   if (!response.ok) throw new Error((await response.json().catch(() => ({})) as { error?: string }).error ?? "Something went wrong")
 }
 
-export function CaseView({ summary, onBack, onChange }: { summary: CaseSummary; onBack: () => void; onChange: () => void }) {
+export function CaseView({ summary, snapshotAt, onBack, onChange }: { summary: CaseSummary; snapshotAt: string | null; onBack: () => void; onChange: () => void }) {
   const [steps, setSteps] = useState<Step[] | null>(null)
   const [detail, setDetail] = useState<CaseSummary>(summary)
   const [error, setError] = useState("")
@@ -75,6 +79,10 @@ export function CaseView({ summary, onBack, onChange }: { summary: CaseSummary; 
   const status = STATUS[detail.status]
   const decision = detail.status === "needs_person" ? detail.pendingDecision : null
   const order = detail.order
+  const now = useCaseNow(snapshotAt, detail.createdAt)
+  const zone = zoneForCity(order?.to)
+  const history = useMemo(() => findingsOf(steps ?? []), [steps])
+  const byId = useMemo(() => new Map((steps ?? []).map((step) => [step.id, step])), [steps])
 
   return <article className="case">
     <button type="button" className="mail-back" onClick={onBack}><Icon name="chevron" size={13} style={{ transform: "rotate(180deg)" }} /> All cases</button>
@@ -93,11 +101,18 @@ export function CaseView({ summary, onBack, onChange }: { summary: CaseSummary; 
     {!decision && detail.status === "working" && <p className="case-working">The agent is looking into this. It will bring you a decision if it needs one.</p>}
     {error && <p className="board-error case-error" role="alert">{error}</p>}
 
-    {decision && <DecisionPanel decision={decision} onAct={(body) => act(`/api/cases/${detail.id}/decision`, body)} />}
-    {decision && <Findings decision={decision} steps={steps ?? []} />}
+    <SitePatternNotice orderId={detail.orderId} />
+    <Investigation history={history} byId={byId} now={now} zone={zone} />
+
+    {decision && <section className="stage stage-two" aria-label="Recovery">
+      <p className="stage-label"><span className="stage-num">2</span>Recovery <small>What can we do? What does each option cost or break? How much time is left? What do you approve?</small></p>
+      {!!decision.deadlines?.length && <Deadlines deadlines={decision.deadlines} now={now} zone={zone} />}
+      <DecisionPanel decision={decision} zone={zone} onAct={(body) => act(`/api/cases/${detail.id}/decision`, body)} />
+      <Findings decision={decision} steps={steps ?? []} />
+    </section>}
 
     <section className="case-story" aria-label="What happened">
-      <h3 className="case-sec-title">How it went</h3>
+      <h3 className="case-sec-title">Agent activity <small>every lookup, question and answer</small></h3>
       {!steps && <p className="empty">Loading…</p>}
       {steps && <Timeline steps={steps} live={live} />}
     </section>
@@ -106,11 +121,13 @@ export function CaseView({ summary, onBack, onChange }: { summary: CaseSummary; 
   </article>
 }
 
-function DecisionPanel({ decision, onAct }: { decision: Decision; onAct: (body: { choice: string; note?: string }) => Promise<void> }) {
+function DecisionPanel({ decision, zone, onAct }: { decision: Decision; zone: string; onAct: (body: { choice: string; note?: string }) => Promise<void> }) {
   const recommendation = decision.recommendation ?? {}
   const [draft, setDraft] = useState(recommendation.customer_message_draft ?? "")
   const [mode, setMode] = useState<"idle" | "done" | "change" | "reject">("idle")
   const personLed = isPersonLed(recommendation.action)
+  // Older hand-overs have no scores; they keep the plain "Or instead" list.
+  const scored = !!recommendation.certainty
   const [note, setNote] = useState("")
   const [busy, setBusy] = useState(false)
 
@@ -158,7 +175,12 @@ function DecisionPanel({ decision, onAct }: { decision: Decision; onAct: (body: 
       </div>
     </form>}
 
-    {mode === "idle" && !!decision.alternatives?.length && <div className="decision-alts">
+    {mode === "idle" && scored && <OptionCompare zone={zone} busy={busy}
+      options={[{ option: recommendation, tag: "Recommended" }, ...(decision.alternatives ?? []).map((option, index) => ({ option, tag: `Option ${index + 2}` })), ...(decision.plan_b ? [{ option: decision.plan_b, tag: "Plan B" }] : [])]}
+      onChoose={(option, priority, tag) => run({ choice: "change", note: `${tag === "Plan B" ? "Switch to plan B" : "Do this instead"}${priority === "balanced" ? "" : ` (what matters most today: ${priority})`}: ${option.summary}` })} />}
+    {mode === "idle" && decision.plan_b && <PlanBPanel plan={decision.plan_b} zone={zone} busy={busy}
+      onSwitch={() => run({ choice: "change", note: `Switch to plan B now: ${decision.plan_b?.summary ?? ""}` })} />}
+    {mode === "idle" && !scored && !!decision.alternatives?.length && <div className="decision-alts">
       <p>Or instead</p>
       <ul>{decision.alternatives.map((alternative, index) => <li key={index}>
         <button type="button" className="alt" disabled={busy} onClick={() => run({ choice: "change", note: `Do this instead: ${alternative.summary}` })}>
@@ -173,7 +195,7 @@ function Findings({ decision, steps }: { decision: Decision; steps: Step[] }) {
   const byId = useMemo(() => new Map(steps.map((step) => [step.id, step])), [steps])
   return <section className="findings" aria-label="What the agent found">
     {!!decision.facts?.length && <>
-      <h3 className="case-sec-title">What the agent found</h3>
+      <h3 className="case-sec-title">Behind the suggestion</h3>
       <ul className="facts-found">{decision.facts.map((fact, index) => <li key={index}>
         <span className="fact-text">{fact.text}</span>
         <span className="fact-sources">{(fact.sources ?? []).map((ref) => {
@@ -224,12 +246,12 @@ function Timeline({ steps, live }: { steps: Step[]; live: boolean }) {
 function StepRow({ step }: { step: Step }) {
   const time = <time dateTime={step.createdAt}>{fmtClock(step.createdAt)}</time>
   if (step.kind === "message") {
-    const who = step.actor === "driver" ? "Driver" : step.actor === "person" ? "You" : step.data.to === "driver" ? "Agent to driver" : "Agent to you"
+    const who = step.actor === "driver" ? "Driver" : step.actor === "site" ? `Pickup site${step.data.contact ? ` (${String(step.data.contact)})` : ""}` : step.actor === "person" ? "You" : step.data.to === "driver" ? "Agent to driver" : step.data.to === "site" ? "Agent to pickup site" : "Agent to you"
     return <li className={`tl tl-msg from-${step.actor}${step.data.to === "person" ? " to-person" : ""}`} id={step.id}>
       <div className="bubble"><span className="bubble-who">{who}{time}</span><p>{step.body}</p></div>
     </li>
   }
-  const icon = { proposal: "proposal", decision: "check", action: "check", error: "alert", note: step.actor === "agent" ? "bot" : "dot" }[step.kind] ?? "dot"
+  const icon = { proposal: "proposal", decision: "check", action: "check", error: "alert", findings: "note", note: step.actor === "agent" ? "bot" : "dot" }[step.kind] ?? "dot"
   const kindClass = step.kind === "note" && step.actor === "agent" ? "thought" : step.kind
   return <li className={`tl tl-${kindClass}`} id={step.id}><Icon name={icon} size={13} /><span>{step.kind === "decision" ? step.body.replace(/^Operations/, "You") : step.body}</span>{time}</li>
 }

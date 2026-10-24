@@ -2,9 +2,9 @@ import { NextResponse, after } from "next/server"
 import { eq, inArray } from "drizzle-orm"
 import { db } from "@/lib/agent/conn"
 import { isRunning, openCase, runCase } from "@/lib/agent/loop"
-import { SCENARIOS, scenarioFor } from "@/lib/agent/scenarios"
+import { packScenario, SCENARIOS, scenarioFor } from "@/lib/agent/scenarios"
 import { listCases } from "@/lib/agent/store"
-import { addresses, customers, orderItems, orders, vehicles } from "@/lib/schema"
+import { addresses, customers, datasetMetadata, orderItems, orders, vehicles } from "@/lib/schema"
 
 export const runtime = "nodejs"
 
@@ -26,7 +26,10 @@ export async function GET() {
       from: city(order.pickupAddressId), to: city(order.deliveryAddressId),
     }]
   }))
+  // Cases run on the snapshot's clock, so countdowns need its start.
+  const [meta] = await db.select().from(datasetMetadata).limit(1)
   return NextResponse.json({
+    snapshotAt: meta?.snapshotAt.toISOString() ?? null,
     // The model transcript and the driver's private scenario are the agent's business, not the interface's.
     cases: cases.map(({ transcript: _transcript, scenario: _scenario, ...rest }) => ({ ...rest, running: isRunning(rest.id), order: orderInfo.get(rest.orderId) ?? null })),
     demos: SCENARIOS.map(({ orderId, title }) => ({ orderId, title, open: cases.some((row) => row.orderId === orderId && row.status !== "resolved") })),
@@ -41,7 +44,7 @@ export async function POST(request: Request) {
   if (!body.orderId || !trigger) {
     return NextResponse.json({ error: "Send orderId and trigger, or the orderId of a demo scenario", demos: SCENARIOS.map((item) => item.orderId) }, { status: 400 })
   }
-  const caseRow = await openCase({ orderId: body.orderId, trigger, scenario: body.scenario ?? demo?.driver })
+  const caseRow = await openCase({ orderId: body.orderId, trigger, scenario: body.scenario ?? packScenario(demo?.driver, demo?.site) })
   // Answer straight away and let the agent work in the background. The page polls the case.
   after(() => runCase(caseRow.id))
   return NextResponse.json({ id: caseRow.id }, { status: 201 })

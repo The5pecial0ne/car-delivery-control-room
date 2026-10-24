@@ -4,6 +4,7 @@ import Link from "next/link"
 import { use, useEffect, useState } from "react"
 import { AppFrame } from "../../components/app-frame"
 import { OrderPane, type Detail } from "../../components/order-detail"
+import { SitePatternNotice } from "../../components/site-pattern"
 
 export default function OrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -27,6 +28,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
     <nav className="crumbs" aria-label="Breadcrumb"><Link href="/board">Orders</Link><span>/</span><span>{detail?.view.header.reference ?? "Record"}</span></nav>
     {error && <div className="record-state" role="alert"><h1>{error}</h1><p>The record could not be opened. <Link href="/board">Back to orders</Link></p></div>}
     {!error && !detail && <div className="record-state" aria-busy="true"><div className="cover skeleton-cover" /><p>Loading order…</p></div>}
+    {detail && <SitePatternNotice orderId={id} />}
     {detail && <OrderPane detail={detail} />}
   </main></AppFrame>
 }

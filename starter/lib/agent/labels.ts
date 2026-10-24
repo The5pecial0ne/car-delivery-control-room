@@ -43,13 +43,23 @@ export function parseSource(ref: string): SourceRef {
   return { table, id, label: SOURCE_NAMES[table] ?? table.replaceAll("_", " ") }
 }
 
+export type Certainty = "confirmed" | "quoted" | "uncertain"
+export type OptionScores = { arrives_at?: string; cost_eur?: number; certainty?: Certainty }
+export type Option = OptionScores & { action?: string; summary?: string }
+export type Deadline = { at: string; what: string; miss?: string; zone?: string; sources?: string[] }
+export type PlanB = OptionScores & { trigger?: string; summary?: string; steps?: string[]; action?: string; sources?: string[] }
+
+export const CERTAINTY_LABEL: Record<Certainty, string> = { confirmed: "Confirmed", quoted: "Quoted", uncertain: "Uncertain" }
+
 export type Decision = {
   headline?: string
   situation?: string
   facts?: { text: string; sources?: string[] }[]
   unknowns?: string[]
-  recommendation?: { action?: string; summary?: string; customer_message_draft?: string; cost_eur?: number }
-  alternatives?: { action?: string; summary?: string }[]
+  recommendation?: Option & { customer_message_draft?: string }
+  alternatives?: Option[]
+  deadlines?: Deadline[]
+  plan_b?: PlanB
   impact?: string
   urgency?: "now" | "today" | "can_wait"
 }

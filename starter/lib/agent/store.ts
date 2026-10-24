@@ -9,8 +9,8 @@ import type { ChatMessage } from "./model"
 export type CaseRow = typeof agentCases.$inferSelect
 export type StepRow = typeof agentSteps.$inferSelect
 export type CaseStatus = "working" | "needs_person" | "resolved" | "failed"
-export type Actor = "agent" | "driver" | "person" | "system"
-export type StepKind = "lookup" | "message" | "proposal" | "decision" | "action" | "note" | "error"
+export type Actor = "agent" | "driver" | "site" | "person" | "system"
+export type StepKind = "lookup" | "message" | "findings" | "proposal" | "decision" | "action" | "note" | "error"
 
 const newId = (prefix: string) => `${prefix}-${randomBytes(6).toString("hex")}`
 

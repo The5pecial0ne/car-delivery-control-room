@@ -1,14 +1,14 @@
-// Sets the desk up for a demo: clears every agent case, then runs the three
+// Sets the desk up for a demo: clears every agent case, then runs all the
 // demo scenarios side by side, so the desk fills up the way it would on a
 // real morning. Open http://localhost:3000 while it runs to watch it live.
 //
-//   npm run agent:demo            clear the desk and run all three
+//   npm run agent:demo            clear the desk and run every demo case
 //   npm run agent:demo -- --clear just clear the desk
 
 import "dotenv/config"
 import { closeDb } from "@/lib/agent/conn"
 import { openCase, runCase } from "@/lib/agent/loop"
-import { SCENARIOS } from "@/lib/agent/scenarios"
+import { packScenario, SCENARIOS } from "@/lib/agent/scenarios"
 import { deleteCase, getCase, listCases } from "@/lib/agent/store"
 
 async function main(): Promise<void> {
@@ -18,7 +18,7 @@ async function main(): Promise<void> {
   if (process.argv.includes("--clear")) return
 
   await Promise.all(SCENARIOS.map(async (scenario) => {
-    const caseRow = await openCase({ orderId: scenario.orderId, trigger: scenario.trigger, scenario: scenario.driver })
+    const caseRow = await openCase({ orderId: scenario.orderId, trigger: scenario.trigger, scenario: packScenario(scenario.driver, scenario.site) })
     console.log(`Started: ${scenario.title}`)
     await runCase(caseRow.id)
     const done = await getCase(caseRow.id)

@@ -2,6 +2,7 @@ import Link from "next/link"
 import type { ReactNode } from "react"
 import { fmtDateTime } from "@/lib/present/time"
 import { Icon } from "./icons"
+import { ReadingModeToggle } from "./reading-mode"
 
 export type Section = "desk" | "board" | "inbox" | "customers" | "drivers" | "sites"
 
@@ -30,6 +31,7 @@ export function AppFrame({ children, section, snapshotAt, board = false }: { chi
           </Link>)}
         </div>)}
       </nav>
+      <ReadingModeToggle />
       <div className="sidebar-foot">{snapshotAt ? `Snapshot ${fmtDateTime(snapshotAt)}` : "Fictional snapshot"}<br />Fictional data · read only</div>
     </aside>
     <div className="main">{children}</div>

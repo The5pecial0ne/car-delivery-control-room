@@ -1,11 +1,15 @@
 # Car Delivery Control Room: our entry
 
-We built the **"Needs you" desk** and the **on-the-road agent**. The agent works breakdowns, sold-out or missed ferries and delays. It does the legwork: it reads the records, messages the driver, gets quotes and checks the delivery promise. A person then gets exactly one decision, with a source on every fact.
+We built the **"Needs you" desk** and an agent that works each case in **two stages**. It handles breakdowns, sold-out or missed ferries, delays, and pickups where the car is not where it should be.
+
+1. **Investigate.** It reads the records and asks the driver or the pickup site. It sorts what it finds into confirmed, reported, planned and unknown, lists where sources disagree, names the one question that unlocks the case, and lays out the delivery as planned against what is really happening.
+2. **Plan the recovery.** It scores options by arrival, cost and certainty, prepares a plan B, and sets deadlines that count down. The operator ranks the options by speed, cost or certainty, and approves one. Every fact has a source.
 
 - What a person sees: cases grouped by who has the ball, a suggestion with Approve, Do something else and Reject, the facts with sources, what is still unknown, and the full story of what the agent did.
 - What the agent may do: read anything and message the driver. Everything that changes the world is a proposal, listed with its own switch in `starter/lib/agent/policy.ts`. One small action, withdrawing an unconfirmed travel change, is switched to automatic. The agent has no tool for contacting customers, so it can only draft messages for a person to send.
 - Checks in code, not only in the prompt: a hand-over is refused if it cites a source the agent never saw, has no facts, or puts ids in the headline.
-- The driver is a second, smaller model with a private scenario, so the agent has to ask.
+- The driver and the pickup desk are played by a second, smaller model with a private scenario, so the agent has to ask.
+- Site patterns flag places where the same trouble keeps coming back. Easy reading mode switches the app to OpenDyslexic.
 
 How we built it: [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md). Demo walkthrough: [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md).
 
