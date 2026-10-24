@@ -1,7 +1,8 @@
 // The tools the agent can use. They come in three kinds:
 //
 //   lookup  reads the order's records. Free, and always the first thing to try.
-//   ask     talks to someone the agent is allowed to contact (the driver).
+//   ask     talks to someone the agent is allowed to contact (the driver, the pickup desk).
+//   findings writes down what the investigation found, before any recovery plan.
 //   act     does one of the few things policy.ts lets the agent do without a person.
 //   finish  hands the case to a person with one decision, or closes it.
 //
@@ -12,7 +13,8 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { addresses, alerts, conversations, customers, drivers, messages, orderItems, orders, relatedRecords, vehicles } from "@/lib/schema"
 import { db } from "./conn"
 import { simulateDriverReply } from "./driver"
-import { patternsForOrder } from "./patterns"
+import { patternsForOrder, sitePatterns } from "./patterns"
+import { pickupContactFor, simulateSiteReply } from "./site"
 import { backupDrivers, delayImpact, ferryOptions, hotelOptions, localTime, planSailings, roadsideHelp, towQuote } from "./services"
 import type { ChatMessage, CompleteFn, ToolSpec } from "./model"
 import { ACTION_KINDS, ACTIONS, AUTO_ACTIONS, isActionKind } from "./policy"
@@ -29,7 +31,7 @@ export type ToolOutcome = {
 }
 type Tool = {
   name: string
-  kind: "lookup" | "ask" | "act" | "finish"
+  kind: "lookup" | "ask" | "findings" | "act" | "finish"
   description: string
   parameters: Record<string, unknown>
   run: (args: Record<string, unknown>, ctx: ToolContext) => Promise<ToolOutcome>
@@ -50,6 +52,31 @@ function unseenSources(sources: string[], ctx: ToolContext): string[] {
 }
 
 const HEADLINE_MAX = 140
+
+// Where in the transcript a tool last ran successfully, so the finishing tools
+// can check the order of work: findings must come after the last answer.
+function lastSuccess(transcript: ChatMessage[], names: string[]): number {
+  let found = -1
+  transcript.forEach((message, index) => {
+    if (message.role !== "assistant" || !message.tool_calls) return
+    for (const call of message.tool_calls) {
+      if (!names.includes(call.function.name)) continue
+      const result = transcript.slice(index + 1).find((later) => later.role === "tool" && later.tool_call_id === call.id)
+      if (result && result.role === "tool" && !result.content.startsWith('{"error"')) found = index
+    }
+  })
+  return found
+}
+
+function needsFreshFindings(ctx: ToolContext): string | false {
+  const findings = lastSuccess(ctx.transcript, ["record_findings"])
+  if (findings === -1) return "record_findings first: stage one (what is true, what is unknown, the key question) comes before any recovery plan"
+  if (lastSuccess(ctx.transcript, ["message_driver", "ask_pickup_contact"]) > findings) return "you learned something new since your last record_findings; update the findings first"
+  return false
+}
+
+const FACT_STATUS = ["confirmed", "reported", "planned", "unknown"]
+const TIMELINE_STATUS = ["planned", "reported", "confirmed", "projected", "missed"]
 
 // How each option scores, so the desk can rank them by what the person cares
 // about most right now: speed, cost or certainty.
@@ -296,6 +323,121 @@ const tools: Tool[] = [
     },
   },
   {
+    name: "ask_pickup_contact",
+    kind: "ask",
+    description: "Call or message the desk at the pickup site (the contact on the order's pickup details) and wait for their answer. Allowed without approval. Use it for what only the site can know: where the car physically is, who holds the keys, what release paperwork they need, opening hours. Ask one or two things at a time. This is not the customer.",
+    parameters: { type: "object", properties: { message: { type: "string" } }, required: ["message"] },
+    async run(args, ctx) {
+      const text = str(args.message).trim()
+      if (!text) return { content: { error: "Empty message" }, summary: "" }
+      const contact = await pickupContactFor(ctx.caseRow.orderId)
+      if (!contact) return { content: { error: "This order has no pickup contact on file." }, summary: "Tried to reach the pickup site, but no contact is on file" }
+      const sent = await addStep(ctx.caseRow.id, { actor: "agent", kind: "message", body: text, data: { to: "site", channel: "site_call", contact: contact.name } })
+      const reply = await simulateSiteReply(ctx.caseRow, ctx.complete)
+      const received = await addStep(ctx.caseRow.id, { actor: "site", kind: "message", body: reply, data: { from: "site", channel: "site_call", contact: contact.name, in_reply_to: sent.id } })
+      return { summary: "", content: { contact: contact.name, role: contact.role, reply, source: `agent_steps/${received.id}` } }
+    },
+  },
+  {
+    name: "get_site_history",
+    kind: "lookup",
+    description: "Recurring problems at the pickup and delivery places of an order (or at one site): which earlier orders had trouble there and of what kind, such as keys, release papers, gate access or a car that was not there.",
+    parameters: { type: "object", properties: { ...orderArg, site_id: { type: "string" } } },
+    async run(args, ctx) {
+      const siteId = str(args.site_id)
+      const patterns = siteId ? await sitePatterns({ siteIds: [siteId] }) : await patternsForOrder(orderOf(args, ctx))
+      return {
+        summary: patterns.length ? `Found a repeating problem at ${patterns.map((pattern) => pattern.siteName).join(" and ")}` : "Checked the site history: nothing repeating",
+        content: patterns.length ? patterns : { note: "No repeating problem at these places in the records." },
+      }
+    },
+  },
+  {
+    name: "record_findings",
+    kind: "findings",
+    description: "Stage one of every case: write down what the investigation found before you plan anything. Call it once you have looked, again after each answer from the driver or the site, and always before ask_person or close_case. Separate what is confirmed from what is only reported, planned or unknown, list where records disagree, name the one question that would unlock the case, and lay out the timeline as planned against what is really happening.",
+    parameters: {
+      type: "object",
+      required: ["problem", "facts", "key_question", "timeline"],
+      properties: {
+        problem: { type: "string", description: "The main problem in one plain sentence." },
+        facts: {
+          type: "array",
+          items: {
+            type: "object", required: ["text", "status"],
+            properties: {
+              text: { type: "string" },
+              status: { type: "string", enum: FACT_STATUS, description: "confirmed: checked by someone who knows (the driver on the spot, the site, a booking). reported: someone said so but nobody checked. planned: what the plan says should happen. unknown: we do not know yet." },
+              sources: { type: "array", items: { type: "string" }, description: "Required unless the status is unknown." },
+            },
+          },
+        },
+        conflicts: {
+          type: "array", description: "Where two sources disagree.",
+          items: {
+            type: "object", required: ["about", "sides"],
+            properties: {
+              about: { type: "string" },
+              sides: { type: "array", items: { type: "object", required: ["says", "source"], properties: { says: { type: "string" }, source: { type: "string" } } } },
+              resolved: { type: "string", description: "Which side turned out right and how we know, if settled." },
+            },
+          },
+        },
+        key_question: {
+          type: "object", required: ["question", "ask", "why"],
+          properties: {
+            question: { type: "string", description: "The one question whose answer changes what we do." },
+            ask: { type: "string", enum: ["driver", "pickup_contact", "customer", "nobody"], description: "Who can answer it. 'nobody' once it is answered." },
+            why: { type: "string" },
+            answer: { type: "string", description: "The answer, once you have it." },
+            answer_source: { type: "string" },
+          },
+        },
+        timeline: {
+          type: "array", description: "The delivery as planned and as it really stands, in time order.",
+          items: {
+            type: "object", required: ["at", "what", "status"],
+            properties: {
+              at: { type: "string", description: "UTC, ISO 8601" },
+              what: { type: "string" },
+              status: { type: "string", enum: TIMELINE_STATUS },
+              sources: { type: "array", items: { type: "string" } },
+            },
+          },
+        },
+      },
+    },
+    async run(args, ctx) {
+      const listOf = (value: unknown) => Array.isArray(value) ? value.map(String) : []
+      const facts = Array.isArray(args.facts) ? args.facts as Record<string, unknown>[] : []
+      const conflicts = Array.isArray(args.conflicts) ? args.conflicts as { sides?: { source?: unknown }[] }[] : []
+      const timeline = Array.isArray(args.timeline) ? args.timeline as Record<string, unknown>[] : []
+      const question = (args.key_question ?? {}) as Record<string, unknown>
+      const cited = [
+        ...facts.flatMap((fact) => listOf(fact.sources)),
+        ...conflicts.flatMap((conflict) => (conflict.sides ?? []).map((side) => String(side.source ?? ""))),
+        ...timeline.flatMap((event) => listOf(event.sources)),
+        ...(question.answer_source ? [String(question.answer_source)] : []),
+      ].filter(Boolean)
+      const unseen = unseenSources(cited, ctx)
+      const problems = [
+        !str(args.problem) && "problem is missing",
+        !facts.length && "facts is empty",
+        facts.some((fact) => !FACT_STATUS.includes(str(fact.status))) && `each fact needs a status: ${FACT_STATUS.join(", ")}`,
+        facts.some((fact) => fact.status !== "unknown" && !listOf(fact.sources).length) && "only unknown facts may go without a source",
+        !str(question.question) && "key_question.question is missing",
+        timeline.some((event) => !isTime(event.at) || !TIMELINE_STATUS.includes(str(event.status))) && `every timeline entry needs an ISO time and a status: ${TIMELINE_STATUS.join(", ")}`,
+        unseen.length > 0 && `these sources were not returned by any tool on this case: ${unseen.join(", ")}`,
+      ].filter(Boolean)
+      if (problems.length) return { content: { error: `Findings not recorded: ${problems.join("; ")}. Fix and try again.` }, summary: `Findings sent back by the checker: ${problems.join("; ")}` }
+      const count = (status: string) => facts.filter((fact) => fact.status === status).length
+      return {
+        content: { ok: true, note: "Recorded. If the key question is still open, ask it. Otherwise move on to recovery." },
+        summary: `Findings: ${count("confirmed")} confirmed, ${count("reported")} reported, ${count("unknown")} unknown${conflicts.length ? `, ${conflicts.length} conflict${conflicts.length === 1 ? "" : "s"}` : ""}`,
+      }
+    },
+  },
+  {
     name: "take_action",
     kind: "act",
     description: `Do something yourself, without asking a person. Only works for the actions switched to automatic in policy: ${AUTO_ACTIONS.join(", ")}. Anything else is refused; hand it over with ask_person instead.`,
@@ -395,6 +537,7 @@ const tools: Tool[] = [
       ]
       const unseen = unseenSources(cited, ctx)
       const problems = [
+        needsFreshFindings(ctx),
         !str(args.headline) && "headline is missing",
         str(args.headline).length > HEADLINE_MAX && `headline is ${str(args.headline).length} characters, keep it under ${HEADLINE_MAX}`,
         HAS_ID.test(str(args.headline)) && "the headline has an id or order number in it; name the car and the place instead",
@@ -434,6 +577,7 @@ const tools: Tool[] = [
       const summary = str(args.summary)
       const unseen = unseenSources(Array.isArray(args.sources) ? args.sources.map(String) : [], ctx)
       const problems = [
+        needsFreshFindings(ctx),
         !summary && "summary is missing",
         summary.length > HEADLINE_MAX && `summary is ${summary.length} characters, keep it under ${HEADLINE_MAX}`,
         HAS_ID.test(summary) && "the summary has an id or order number in it; say it in plain words",

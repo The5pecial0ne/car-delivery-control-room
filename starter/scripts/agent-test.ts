@@ -19,6 +19,11 @@ const lastToolResult = (messages: ChatMessage[]) => {
   return tool ? JSON.parse(tool.content) : null
 }
 
+const findings = (source: string) => call("record_findings", {
+  problem: "Red warning light, car stopped.", facts: [{ text: "Driver is safe", status: "confirmed", sources: [source] }],
+  key_question: { question: "Is the driver safe?", ask: "nobody", why: "Safety first", answer: "Yes" }, timeline: [{ at: "2026-10-21T08:04:00Z", what: "Car stopped", status: "confirmed", sources: [source] }],
+})
+
 // Each agent turn looks at how far the conversation has got and plays the next move.
 const scripted: CompleteFn = async ({ model, messages }) => {
   if (model === DRIVER_MODEL) return { role: "assistant", content: "Yes, I'm safe. Rasthof Göttingen car park, engine off. [photo: red engine warning]" }
@@ -27,6 +32,9 @@ const scripted: CompleteFn = async ({ model, messages }) => {
   if (lastUser.includes("writes to you")) return { role: "assistant", content: "The driver is safe and waiting. I have asked you to decide on roadside help." }
   if (lastUser.includes("approved")) {
     if (!messages.slice(-3).some((message) => message.role === "tool")) return { role: "assistant", content: null, tool_calls: [call("message_driver", { message: "Help is on the way. Please wait with the car." })] }
+    const afterReply = messages.slice(-2).some((message) => message.role === "tool" && message.content.includes("driver_reply"))
+    const source = messages.map((message) => message.role === "tool" ? message.content : "").join("").match(/agent_steps\/step-[0-9a-f]+/g)?.at(-1) ?? ""
+    if (afterReply) return { role: "assistant", content: null, tool_calls: [findings(source)] }
     return { role: "assistant", content: null, tool_calls: [call("close_case", { summary: "Roadside help booked, driver informed." })] }
   }
   if (turns === 0) return { role: "assistant", content: "Let me look at the order first.", tool_calls: [call("get_order"), call("get_messages"), call("get_alerts_and_incidents"), call("get_records", { collection: "tracking_observations" })] }
@@ -37,8 +45,11 @@ const scripted: CompleteFn = async ({ model, messages }) => {
     // First a malformed hand-over, which the tool should refuse.
     return { role: "assistant", content: null, tool_calls: [call("ask_person", { headline: "x", facts: [], recommendation: { action: "teleport", summary: "?" } })] }
   }
-  assert.match(lastToolResult(messages)?.error ?? "", /Not handed over/)
-  const source = messages.map((message) => message.role === "tool" ? message.content : "").join("").match(/agent_steps\/step-[0-9a-f]+/)?.[0]
+  const source = messages.map((message) => message.role === "tool" ? message.content : "").join("").match(/agent_steps\/step-[0-9a-f]+/)?.[0] ?? ""
+  if (turns === 3) {
+    assert.match(lastToolResult(messages)?.error ?? "", /Not handed over/)
+    return { role: "assistant", content: null, tool_calls: [findings(source)] }
+  }
   return {
     role: "assistant", content: null, tool_calls: [call("ask_person", {
       headline: "Bentley stopped near Göttingen, driver safe. Call the dealer: their roadside help or a tow?",

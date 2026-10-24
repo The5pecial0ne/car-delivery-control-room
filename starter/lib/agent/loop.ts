@@ -92,7 +92,7 @@ async function loop(caseId: string, deps: Deps): Promise<void> {
         content = outcome.content
         if (outcome.summary) {
           await addStep(caseId, {
-            actor: "agent", kind: tool.kind === "act" ? "action" : tool.kind === "finish" ? (outcome.finish ? (outcome.finish.status === "resolved" ? "note" : "proposal") : "note") : "lookup",
+            actor: "agent", kind: tool.kind === "act" ? "action" : tool.kind === "findings" ? (outcome.summary.startsWith("Findings:") ? "findings" : "note") : tool.kind === "finish" ? (outcome.finish ? (outcome.finish.status === "resolved" ? "note" : "proposal") : "note") : "lookup",
             body: outcome.summary, data: { tool: tool.name, args, ...(outcome.finish?.pendingDecision ? { decision: outcome.finish.pendingDecision } : {}) },
           })
         }

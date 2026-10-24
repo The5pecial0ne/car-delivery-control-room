@@ -11,7 +11,7 @@
 import "dotenv/config"
 import { decide, openCase, runCase } from "@/lib/agent/loop"
 import { closeDb } from "@/lib/agent/conn"
-import { scenarioFor } from "@/lib/agent/scenarios"
+import { packScenario, scenarioFor } from "@/lib/agent/scenarios"
 import { getCase, listSteps } from "@/lib/agent/store"
 
 const args = process.argv.slice(2)
@@ -20,7 +20,7 @@ const note = args.find((arg) => arg.startsWith("--note="))?.slice("--note=".leng
 const [orderId = "ord-00322", givenTrigger, givenScenario] = args.filter((arg) => !arg.startsWith("--"))
 const demo = scenarioFor(orderId)
 const trigger = givenTrigger ?? demo?.trigger ?? "Check on this moving order."
-const scenario = givenScenario ?? demo?.driver
+const scenario = givenScenario ?? packScenario(demo?.driver, demo?.site)
 
 async function main(): Promise<void> {
   const caseRow = await openCase({ orderId, trigger, scenario })

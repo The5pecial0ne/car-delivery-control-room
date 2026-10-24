@@ -2,7 +2,7 @@ import { NextResponse, after } from "next/server"
 import { eq, inArray } from "drizzle-orm"
 import { db } from "@/lib/agent/conn"
 import { isRunning, openCase, runCase } from "@/lib/agent/loop"
-import { SCENARIOS, scenarioFor } from "@/lib/agent/scenarios"
+import { packScenario, SCENARIOS, scenarioFor } from "@/lib/agent/scenarios"
 import { listCases } from "@/lib/agent/store"
 import { addresses, customers, datasetMetadata, orderItems, orders, vehicles } from "@/lib/schema"
 
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   if (!body.orderId || !trigger) {
     return NextResponse.json({ error: "Send orderId and trigger, or the orderId of a demo scenario", demos: SCENARIOS.map((item) => item.orderId) }, { status: 400 })
   }
-  const caseRow = await openCase({ orderId: body.orderId, trigger, scenario: body.scenario ?? demo?.driver })
+  const caseRow = await openCase({ orderId: body.orderId, trigger, scenario: body.scenario ?? packScenario(demo?.driver, demo?.site) })
   // Answer straight away and let the agent work in the background. The page polls the case.
   after(() => runCase(caseRow.id))
   return NextResponse.json({ id: caseRow.id }, { status: 201 })

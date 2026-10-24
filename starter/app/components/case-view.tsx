@@ -12,6 +12,7 @@ import { fmtClock } from "@/lib/present/time"
 import { zoneForCity } from "@/lib/agent/clock"
 import { Deadlines, OptionCompare, PlanBPanel, useCaseNow } from "./decision-extras"
 import { SitePatternNotice } from "./site-pattern"
+import { findingsOf, Investigation } from "./investigation"
 import { Icon } from "./icons"
 import { Chip } from "./ui"
 
@@ -28,7 +29,7 @@ export type CaseSummary = {
   order: { reference: string; customer: string | null; car: string | null; from: string | null; to: string | null } | null
 }
 
-type Step = { id: string; seq: number; actor: "agent" | "driver" | "person" | "system"; kind: string; body: string; data: Record<string, unknown>; createdAt: string }
+type Step = { id: string; seq: number; actor: "agent" | "driver" | "site" | "person" | "system"; kind: string; body: string; data: Record<string, unknown>; createdAt: string }
 
 const STATUS: Record<CaseSummary["status"], { label: string; tone: "warn" | "accent" | "ok" | "danger" }> = {
   needs_person: { label: "Needs your decision", tone: "warn" },
@@ -80,6 +81,8 @@ export function CaseView({ summary, snapshotAt, onBack, onChange }: { summary: C
   const order = detail.order
   const now = useCaseNow(snapshotAt, detail.createdAt)
   const zone = zoneForCity(order?.to)
+  const history = useMemo(() => findingsOf(steps ?? []), [steps])
+  const byId = useMemo(() => new Map((steps ?? []).map((step) => [step.id, step])), [steps])
 
   return <article className="case">
     <button type="button" className="mail-back" onClick={onBack}><Icon name="chevron" size={13} style={{ transform: "rotate(180deg)" }} /> All cases</button>
@@ -99,12 +102,17 @@ export function CaseView({ summary, snapshotAt, onBack, onChange }: { summary: C
     {error && <p className="board-error case-error" role="alert">{error}</p>}
 
     <SitePatternNotice orderId={detail.orderId} />
-    {!!decision?.deadlines?.length && <Deadlines deadlines={decision.deadlines} now={now} zone={zone} />}
-    {decision && <DecisionPanel decision={decision} zone={zone} onAct={(body) => act(`/api/cases/${detail.id}/decision`, body)} />}
-    {decision && <Findings decision={decision} steps={steps ?? []} />}
+    <Investigation history={history} byId={byId} now={now} zone={zone} />
+
+    {decision && <section className="stage stage-two" aria-label="Recovery">
+      <p className="stage-label"><span className="stage-num">2</span>Recovery <small>What can we do? What does each option cost or break? How much time is left? What do you approve?</small></p>
+      {!!decision.deadlines?.length && <Deadlines deadlines={decision.deadlines} now={now} zone={zone} />}
+      <DecisionPanel decision={decision} zone={zone} onAct={(body) => act(`/api/cases/${detail.id}/decision`, body)} />
+      <Findings decision={decision} steps={steps ?? []} />
+    </section>}
 
     <section className="case-story" aria-label="What happened">
-      <h3 className="case-sec-title">How it went</h3>
+      <h3 className="case-sec-title">Agent activity <small>every lookup, question and answer</small></h3>
       {!steps && <p className="empty">Loading…</p>}
       {steps && <Timeline steps={steps} live={live} />}
     </section>
@@ -187,7 +195,7 @@ function Findings({ decision, steps }: { decision: Decision; steps: Step[] }) {
   const byId = useMemo(() => new Map(steps.map((step) => [step.id, step])), [steps])
   return <section className="findings" aria-label="What the agent found">
     {!!decision.facts?.length && <>
-      <h3 className="case-sec-title">What the agent found</h3>
+      <h3 className="case-sec-title">Behind the suggestion</h3>
       <ul className="facts-found">{decision.facts.map((fact, index) => <li key={index}>
         <span className="fact-text">{fact.text}</span>
         <span className="fact-sources">{(fact.sources ?? []).map((ref) => {
@@ -238,12 +246,12 @@ function Timeline({ steps, live }: { steps: Step[]; live: boolean }) {
 function StepRow({ step }: { step: Step }) {
   const time = <time dateTime={step.createdAt}>{fmtClock(step.createdAt)}</time>
   if (step.kind === "message") {
-    const who = step.actor === "driver" ? "Driver" : step.actor === "person" ? "You" : step.data.to === "driver" ? "Agent to driver" : "Agent to you"
+    const who = step.actor === "driver" ? "Driver" : step.actor === "site" ? `Pickup site${step.data.contact ? ` (${String(step.data.contact)})` : ""}` : step.actor === "person" ? "You" : step.data.to === "driver" ? "Agent to driver" : step.data.to === "site" ? "Agent to pickup site" : "Agent to you"
     return <li className={`tl tl-msg from-${step.actor}${step.data.to === "person" ? " to-person" : ""}`} id={step.id}>
       <div className="bubble"><span className="bubble-who">{who}{time}</span><p>{step.body}</p></div>
     </li>
   }
-  const icon = { proposal: "proposal", decision: "check", action: "check", error: "alert", note: step.actor === "agent" ? "bot" : "dot" }[step.kind] ?? "dot"
+  const icon = { proposal: "proposal", decision: "check", action: "check", error: "alert", findings: "note", note: step.actor === "agent" ? "bot" : "dot" }[step.kind] ?? "dot"
   const kindClass = step.kind === "note" && step.actor === "agent" ? "thought" : step.kind
   return <li className={`tl tl-${kindClass}`} id={step.id}><Icon name={icon} size={13} /><span>{step.kind === "decision" ? step.body.replace(/^Operations/, "You") : step.body}</span>{time}</li>
 }
