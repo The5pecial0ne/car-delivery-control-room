@@ -1,3 +1,18 @@
+# Car Delivery Control Room: our entry
+
+We built the **"Needs you" desk** and the **on-the-road agent**. The agent works breakdowns, sold-out or missed ferries and delays. It does the legwork: it reads the records, messages the driver, gets quotes and checks the delivery promise. A person then gets exactly one decision, with a source on every fact.
+
+- What a person sees: cases grouped by who has the ball, a suggestion with Approve, Do something else and Reject, the facts with sources, what is still unknown, and the full story of what the agent did.
+- What the agent may do: read anything and message the driver. Everything that changes the world is a proposal, listed with its own switch in `starter/lib/agent/policy.ts`. One small action, withdrawing an unconfirmed travel change, is switched to automatic. The agent has no tool for contacting customers, so it can only draft messages for a person to send.
+- Checks in code, not only in the prompt: a hand-over is refused if it cites a source the agent never saw, has no facts, or puts ids in the headline.
+- The driver is a second, smaller model with a private scenario, so the agent has to ask.
+
+How we built it: [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md). Demo walkthrough: [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md).
+
+**Run it:** follow "Run the starter" below. Put an OpenRouter key in `starter/.env` (`OPENROUTER_API_KEY=`), then run `npm run agent:demo` in `starter/` and open http://localhost:3000. You can also run one case from the terminal with `npm run agent -- ord-00322`. `npm run agent:test` checks the plumbing without spending credit.
+
+---
+
 # The Car Delivery Control Room
 
 This is Bahn's challenge for the Prompt Operations Hackathon, 24 to 25 October
