@@ -7,7 +7,7 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { actionLabel, parseSource, URGENCY, type Decision } from "@/lib/agent/labels"
+import { actionLabel, isPersonLed, parseSource, URGENCY, type Decision } from "@/lib/agent/labels"
 import { fmtClock } from "@/lib/present/time"
 import { Icon } from "./icons"
 import { Chip } from "./ui"
@@ -109,7 +109,8 @@ export function CaseView({ summary, onBack, onChange }: { summary: CaseSummary; 
 function DecisionPanel({ decision, onAct }: { decision: Decision; onAct: (body: { choice: string; note?: string }) => Promise<void> }) {
   const recommendation = decision.recommendation ?? {}
   const [draft, setDraft] = useState(recommendation.customer_message_draft ?? "")
-  const [mode, setMode] = useState<"idle" | "change" | "reject">("idle")
+  const [mode, setMode] = useState<"idle" | "done" | "change" | "reject">("idle")
+  const personLed = isPersonLed(recommendation.action)
   const [note, setNote] = useState("")
   const [busy, setBusy] = useState(false)
 
@@ -117,9 +118,10 @@ function DecisionPanel({ decision, onAct }: { decision: Decision; onAct: (body: 
     setBusy(true)
     try { await onAct(body) } finally { setBusy(false) }
   }
-  const approve = () => {
+  const approve = (outcome?: string) => {
     const edited = recommendation.customer_message_draft && draft.trim() !== recommendation.customer_message_draft.trim()
-    run({ choice: "approve", note: recommendation.customer_message_draft ? `${edited ? "Edited customer message, as sent" : "Customer message sent as drafted"}: ${draft.trim()}` : undefined })
+    const sent = recommendation.customer_message_draft ? `${edited ? "Edited customer message, as sent" : "Customer message sent as drafted"}: ${draft.trim()}` : ""
+    run({ choice: "approve", note: [outcome?.trim() && `How it went: ${outcome.trim()}`, sent].filter(Boolean).join("\n\n") || undefined })
   }
 
   return <section className="decision" aria-label="Decision">
@@ -136,18 +138,22 @@ function DecisionPanel({ decision, onAct }: { decision: Decision; onAct: (body: 
     </label>}
 
     {mode === "idle" && <div className="decision-buttons">
-      <button type="button" className="btn primary" disabled={busy} onClick={approve}><Icon name="check" size={14} />Approve</button>
+      <button type="button" className="btn primary" disabled={busy} onClick={() => personLed ? setMode("done") : approve()}><Icon name="check" size={14} />{personLed ? "I did this" : "Approve"}</button>
       <button type="button" className="btn" disabled={busy} onClick={() => setMode("change")}>Do something else</button>
       <button type="button" className="btn quiet" disabled={busy} onClick={() => setMode("reject")}>Reject</button>
     </div>}
-    {mode !== "idle" && <form className="decision-note" onSubmit={(event) => { event.preventDefault(); run({ choice: mode, note }) }}>
+    {mode !== "idle" && <form className="decision-note" onSubmit={(event) => { event.preventDefault(); if (mode === "done") approve(note); else run({ choice: mode, note }) }}>
       <label>
-        <span>{mode === "change" ? "What should happen instead?" : "Why not? (optional)"}</span>
+        <span>{{ done: "How did it go? The agent picks up from here.", change: "What should happen instead?", reject: "Why not? (optional)" }[mode]}</span>
         <textarea autoFocus value={note} onChange={(event) => setNote(event.target.value)} rows={3}
-          placeholder={mode === "change" ? "For example: the dealer will send their own assistance, tell the driver to wait" : "For example: the dealer already called us"} />
+          placeholder={{
+            done: "For example: the dealer will send their own Bentley assistance within two hours. Driver should wait with the car.",
+            change: "For example: the dealer will send their own assistance, tell the driver to wait",
+            reject: "For example: the dealer already called us",
+          }[mode]} />
       </label>
       <div className="decision-buttons">
-        <button type="submit" className="btn primary" disabled={busy || (mode === "change" && !note.trim())}>{mode === "change" ? "Tell the agent" : "Reject"}</button>
+        <button type="submit" className="btn primary" disabled={busy || (mode !== "reject" && !note.trim())}>{mode === "reject" ? "Reject" : "Tell the agent"}</button>
         <button type="button" className="btn quiet" onClick={() => { setMode("idle"); setNote("") }}>Cancel</button>
       </div>
     </form>}

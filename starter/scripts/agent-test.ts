@@ -21,7 +21,7 @@ const lastToolResult = (messages: ChatMessage[]) => {
 
 // Each agent turn looks at how far the conversation has got and plays the next move.
 const scripted: CompleteFn = async ({ model, messages }) => {
-  if (model === DRIVER_MODEL) return { role: "assistant", content: "Yes, I'm safe. Rasthof Holledau car park, engine off. [photo: red engine warning]" }
+  if (model === DRIVER_MODEL) return { role: "assistant", content: "Yes, I'm safe. Rasthof Göttingen car park, engine off. [photo: red engine warning]" }
   const turns = messages.filter((message) => message.role === "assistant").length
   const lastUser = [...messages].reverse().find((message) => message.role === "user")?.content ?? ""
   if (lastUser.includes("writes to you")) return { role: "assistant", content: "The driver is safe and waiting. I have asked you to decide on roadside help." }
@@ -41,9 +41,9 @@ const scripted: CompleteFn = async ({ model, messages }) => {
   const source = messages.map((message) => message.role === "tool" ? message.content : "").join("").match(/agent_steps\/step-[0-9a-f]+/)?.[0]
   return {
     role: "assistant", content: null, tool_calls: [call("ask_person", {
-      headline: "Bentley stopped near Munich, driver safe. Call the dealer: their roadside help or a tow?",
+      headline: "Bentley stopped near Göttingen, driver safe. Call the dealer: their roadside help or a tow?",
       situation: "The driver stopped at a service area with a red warning light.",
-      facts: [{ text: "Driver is safe at Rasthof Holledau", sources: [source] }],
+      facts: [{ text: "Driver is safe at Rasthof Göttingen", sources: [source] }],
       recommendation: { action: "book_roadside_assistance", summary: "Book roadside assistance to the service area." },
       urgency: "now",
     })],

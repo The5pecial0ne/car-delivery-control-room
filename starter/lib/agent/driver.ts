@@ -46,9 +46,10 @@ export async function simulateDriverReply(caseRow: CaseRow, complete: CompleteFn
     "You are not a mechanic and you do not diagnose the car. You will not drive on unless Bahn clearly tells you to.",
     "Everything here is fictional.",
     "",
-    `What is really going on (private to you): ${caseRow.scenario ?? DEFAULT_SCENARIO}`,
+    `What is really going on right now (private to you): ${caseRow.scenario ?? DEFAULT_SCENARIO}`,
+    "This is the truth as of now. It overrides anything you said earlier in the chat, because things have moved on since. Stay consistent with it in every reply.",
   ].join("\n")
 
-  const reply = await complete({ model: DRIVER_MODEL, messages: [{ role: "system", content: system }, ...history], temperature: 0.7 })
+  const reply = await complete({ model: DRIVER_MODEL, messages: [{ role: "system", content: system }, ...history], temperature: 0.4 })
   return (reply.content ?? "").trim() || "Sorry, can you say that again?"
 }

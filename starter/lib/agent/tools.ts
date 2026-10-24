@@ -2,6 +2,7 @@
 //
 //   lookup  reads the order's records. Free, and always the first thing to try.
 //   ask     talks to someone the agent is allowed to contact (the driver).
+//   act     does one of the few things policy.ts lets the agent do without a person.
 //   finish  hands the case to a person with one decision, or closes it.
 //
 // Every record that comes back carries its table and id, so the agent can cite
@@ -11,12 +12,13 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { addresses, alerts, conversations, customers, drivers, messages, orderItems, orders, relatedRecords, vehicles } from "@/lib/schema"
 import { db } from "./conn"
 import { simulateDriverReply } from "./driver"
-import { delayImpact, ferryOptions, hotelOptions, roadsideHelp, towQuote } from "./services"
-import type { CompleteFn, ToolSpec } from "./model"
-import { ACTION_KINDS, ACTIONS, isActionKind } from "./policy"
+import { delayImpact, ferryOptions, hotelOptions, localTime, planSailings, roadsideHelp, towQuote } from "./services"
+import type { ChatMessage, CompleteFn, ToolSpec } from "./model"
+import { ACTION_KINDS, ACTIONS, AUTO_ACTIONS, isActionKind } from "./policy"
 import { addStep, type CaseRow, type CaseStatus } from "./store"
 
-export type ToolContext = { caseRow: CaseRow; complete: CompleteFn }
+// The transcript so far, so finishing tools can check what the agent has actually seen.
+export type ToolContext = { caseRow: CaseRow; complete: CompleteFn; transcript: ChatMessage[] }
 export type ToolOutcome = {
   content: unknown
   // One plain line for the trace, written for an operations person.
@@ -26,7 +28,7 @@ export type ToolOutcome = {
 }
 type Tool = {
   name: string
-  kind: "lookup" | "ask" | "finish"
+  kind: "lookup" | "ask" | "act" | "finish"
   description: string
   parameters: Record<string, unknown>
   run: (args: Record<string, unknown>, ctx: ToolContext) => Promise<ToolOutcome>
@@ -35,6 +37,20 @@ type Tool = {
 const str = (value: unknown) => typeof value === "string" ? value : ""
 const orderArg = { order_id: { type: "string", description: "Order id such as ord-00322. Leave out to use this case's order." } }
 const orderOf = (args: Record<string, unknown>, ctx: ToolContext) => str(args.order_id) || ctx.caseRow.orderId
+
+// A source is only good if a tool actually returned it on this case. The model
+// is good at producing ids that look right, so we check rather than trust.
+function unseenSources(sources: string[], ctx: ToolContext): string[] {
+  const seen = ctx.transcript.map((message) => message.role === "tool" ? message.content : "").join("\n")
+  return sources.filter((source) => {
+    const id = source.slice(source.indexOf("/") + 1)
+    return !source.includes("/") || !id || !seen.includes(id)
+  })
+}
+
+const HEADLINE_MAX = 140
+// Ids belong in the sources, not in what a person reads first.
+const HAS_ID = /\b(ord|cd)-\d{5,}\b|\b[a-z]+-x?[0-9a-f]{8,}\b|agent_steps|simulated\//i
 
 // Collections the agent may read through get_records. The big shared tables stay out.
 const READABLE = [
@@ -82,7 +98,8 @@ const tools: Tool[] = [
           vehicles: items.map(({ item, vehicle }) => ({ table: "vehicles", id: vehicle.id, role: item.role, make: vehicle.make, model: vehicle.model, year: vehicle.modelYear, fuel: vehicle.fuel, registration: vehicle.registration })),
           pickup: place(order.pickupAddressId),
           delivery: place(order.deliveryAddressId),
-          time_windows: windows,
+          // Local times next to the UTC ones, so nobody has to convert in their head.
+          time_windows: windows.map((row) => ({ ...row, local: `${localTime(str(row.start_at), row.timezone)} to ${localTime(str(row.end_at), row.timezone)}` })),
           driver_work: assignments.map((row) => ({ ...row, driver: driverRows.find((driver) => driver.id === row.driver_id)?.displayName ?? null })),
         },
       }
@@ -191,6 +208,25 @@ const tools: Tool[] = [
     },
   },
   {
+    name: "plan_sailings",
+    kind: "lookup",
+    description: "For every sailing that is not sold out: when the driver reaches the terminal, whether they make check-in, which nights need a hotel, and when the car reaches the buyer against the promise. Use this instead of working out dates yourself.",
+    parameters: {
+      type: "object",
+      properties: {
+        ...orderArg,
+        onward_drive_hours: { type: "number", description: "Hours from the arrival terminal to the buyer, if you know them. Default 2." },
+        ready_at: { type: "string", description: "When the driver can leave for the terminal (UTC, ISO 8601), if not the end of the pickup slot." },
+      },
+    },
+    async run(args, ctx) {
+      const hours = typeof args.onward_drive_hours === "number" ? args.onward_drive_hours : undefined
+      const result = await planSailings({ orderId: orderOf(args, ctx), onwardDriveHours: hours, readyAt: str(args.ready_at) || undefined })
+      const fits = result.plans.filter((plan) => plan.makes_check_in && plan.inside_promise !== false).length
+      return { summary: `Planned ${result.plans.length} sailing${result.plans.length === 1 ? "" : "s"}: ${fits} make${fits === 1 ? "s" : ""} check-in and the promise`, content: result }
+    },
+  },
+  {
     name: "search_hotels",
     kind: "lookup",
     description: "Hotels for the driver near a place, for one night. Quotes only: nothing gets booked.",
@@ -203,13 +239,15 @@ const tools: Tool[] = [
   {
     name: "estimate_delay_impact",
     kind: "lookup",
-    description: "What a delay of N hours does to the customer's delivery promise, based on the last known ETA.",
-    parameters: { type: "object", required: ["delay_hours"], properties: { ...orderArg, delay_hours: { type: "number" } } },
+    description: "Checks a plan against the customer's delivery promise. Best: give new_arrival_at, the arrival you worked out for the plan (UTC, ISO 8601). Otherwise give delay_hours to add to the last ETA from the driver app (only exists once the car is moving).",
+    parameters: { type: "object", properties: { ...orderArg, new_arrival_at: { type: "string" }, delay_hours: { type: "number" } } },
     async run(args, ctx) {
       const hours = Number(args.delay_hours) || 0
-      const result = await delayImpact({ orderId: orderOf(args, ctx), delayHours: hours })
-      const verdict = result.misses_promise == null ? "no promise on file to compare with" : result.misses_promise ? `would miss the promise by about ${result.hours_late} h` : "still inside the promise"
-      return { summary: `Checked a ${hours} h delay against the delivery promise: ${verdict}`, content: result }
+      const arrival = str(args.new_arrival_at) || undefined
+      const result = await delayImpact({ orderId: orderOf(args, ctx), delayHours: hours, newArrivalAt: arrival })
+      const verdict = result.misses_promise == null ? "nothing to compare" : result.misses_promise ? `misses the promise by about ${result.hours_late} h` : `inside the promise with ${result.hours_spare} h to spare`
+      const what = arrival ? `an arrival of ${result.new_eta_local ?? arrival}` : `a ${hours} h delay`
+      return { summary: `Checked ${what} against the delivery promise: ${verdict}`, content: result }
     },
   },
   {
@@ -230,6 +268,33 @@ const tools: Tool[] = [
     },
   },
   {
+    name: "take_action",
+    kind: "act",
+    description: `Do something yourself, without asking a person. Only works for the actions switched to automatic in policy: ${AUTO_ACTIONS.join(", ")}. Anything else is refused; hand it over with ask_person instead.`,
+    parameters: {
+      type: "object", required: ["action", "reason", "sources"],
+      properties: {
+        action: { type: "string", enum: AUTO_ACTIONS },
+        reason: { type: "string", description: "One plain sentence on why, for the record." },
+        sources: { type: "array", items: { type: "string" }, description: "What shows it is safe, as table/id." },
+      },
+    },
+    async run(args, ctx) {
+      const action = args.action
+      if (!isActionKind(action) || ACTIONS[action].autonomy !== "auto") {
+        return { content: { error: `${String(action)} needs a person's yes. Use ask_person.` }, summary: `Tried to ${isActionKind(action) ? ACTIONS[action].label.toLowerCase() : String(action)} on its own and was stopped: that needs a person` }
+      }
+      const sources = Array.isArray(args.sources) ? args.sources.map(String) : []
+      const unseen = unseenSources(sources, ctx)
+      if (!sources.length || unseen.length) return { content: { error: `Not done: cite the records that show it is safe${unseen.length ? `; not seen on this case: ${unseen.join(", ")}` : ""}.` }, summary: "" }
+      // Nothing real is connected, so doing it means writing it down.
+      return {
+        content: { ok: true, simulated: true, note: "Done and recorded. People can see it on the case." },
+        summary: `Did on its own (simulated): ${ACTIONS[action].label.toLowerCase()}. ${str(args.reason)}`,
+      }
+    },
+  },
+  {
     name: "ask_person",
     kind: "finish",
     description: "Hand the case to an operations person with exactly one decision to make. Use this when the next step changes something (a booking, a date, a cost, a message to the customer) or needs a call to the customer. Do the cheap work first so the person has everything they need. Every fact must cite at least one source as table/id.",
@@ -237,7 +302,7 @@ const tools: Tool[] = [
       type: "object",
       required: ["headline", "situation", "facts", "recommendation"],
       properties: {
-        headline: { type: "string", description: "One line a person reads first, for example: 'Bentley stopped near Munich, driver safe. Call the dealer: their roadside help or a tow?'" },
+        headline: { type: "string", description: "One line a person reads first, for example: 'Bentley stopped near Göttingen, driver safe. Call the dealer: their roadside help or a tow?'" },
         situation: { type: "string", description: "Two or three plain sentences: what happened and where things stand." },
         facts: {
           type: "array",
@@ -261,14 +326,21 @@ const tools: Tool[] = [
         urgency: { type: "string", enum: ["now", "today", "can_wait"] },
       },
     },
-    async run(args) {
+    async run(args, ctx) {
       const recommendation = (args.recommendation ?? {}) as Record<string, unknown>
+      const facts = Array.isArray(args.facts) ? args.facts as { text?: unknown; sources?: unknown }[] : null
+      const cited = (facts ?? []).flatMap((fact) => Array.isArray(fact.sources) ? fact.sources.map(String) : [])
+      const unseen = unseenSources(cited, ctx)
       const problems = [
         !str(args.headline) && "headline is missing",
-        !Array.isArray(args.facts) && "facts must be a list",
+        str(args.headline).length > HEADLINE_MAX && `headline is ${str(args.headline).length} characters, keep it under ${HEADLINE_MAX}`,
+        HAS_ID.test(str(args.headline)) && "the headline has an id or order number in it; name the car and the place instead",
+        !facts?.length && "facts must be a non-empty list",
+        facts?.some((fact) => !Array.isArray(fact.sources) || !fact.sources.length) && "every fact needs at least one source; if you have none, move it to unknowns",
+        unseen.length > 0 && `these sources were not returned by any tool on this case: ${unseen.join(", ")}. Cite only ids you have seen, or drop the fact`,
         !isActionKind(recommendation.action) && `recommendation.action must be one of ${ACTION_KINDS.join(", ")}`,
       ].filter(Boolean)
-      if (problems.length) return { content: { error: `Not handed over: ${problems.join("; ")}. Fix and try again.` }, summary: "" }
+      if (problems.length) return { content: { error: `Not handed over: ${problems.join("; ")}. Fix and try again.` }, summary: `Hand-over sent back by the checker: ${problems.join("; ")}` }
       const action = recommendation.action as keyof typeof ACTIONS
       return {
         content: { ok: true, note: "Handed to a person. Wait for their decision." },
@@ -281,8 +353,23 @@ const tools: Tool[] = [
     name: "close_case",
     kind: "finish",
     description: "Close the case when nothing more is needed from anyone: the problem is solved or was never a problem, and nothing needs changing.",
-    parameters: { type: "object", required: ["summary"], properties: { summary: { type: "string" }, sources: { type: "array", items: { type: "string" } } } },
-    async run(args) {
+    parameters: {
+      type: "object", required: ["summary"],
+      properties: {
+        summary: { type: "string", description: `One plain line for the desk, under ${HEADLINE_MAX} characters, no ids. For example: 'Queue cleared, driver checked in for the booked ferry. Nothing to change.'` },
+        sources: { type: "array", items: { type: "string" }, description: "What shows it is solved, as table/id." },
+      },
+    },
+    async run(args, ctx) {
+      const summary = str(args.summary)
+      const unseen = unseenSources(Array.isArray(args.sources) ? args.sources.map(String) : [], ctx)
+      const problems = [
+        !summary && "summary is missing",
+        summary.length > HEADLINE_MAX && `summary is ${summary.length} characters, keep it under ${HEADLINE_MAX}`,
+        HAS_ID.test(summary) && "the summary has an id or order number in it; say it in plain words",
+        unseen.length > 0 && `these sources were not returned by any tool on this case: ${unseen.join(", ")}`,
+      ].filter(Boolean)
+      if (problems.length) return { content: { error: `Not closed: ${problems.join("; ")}. Fix and try again.` }, summary: `Closing sent back by the checker: ${problems.join("; ")}` }
       return {
         content: { ok: true },
         summary: `Closed the case: ${str(args.summary)}`,

@@ -21,9 +21,14 @@ export const ACTIONS = {
   approve_cost: { label: "Approve a cost", autonomy: "needs_approval", who: "agent" },
   release_driver: { label: "Let the driver continue or go home", autonomy: "needs_approval", who: "agent" },
   hold_and_wait: { label: "Keep everything on hold and check again later", autonomy: "needs_approval", who: "agent" },
+  // The first action we trust the agent with on its own: taking back a travel
+  // change request that nobody confirmed, once the original plan is safe again.
+  // It only ever returns things to what was already booked.
+  withdraw_change_request: { label: "Withdraw an unconfirmed travel change request", autonomy: "auto", who: "agent" },
   other: { label: "Something else", autonomy: "needs_approval", who: "person" },
 } as const satisfies Record<string, { label: string; autonomy: Autonomy; who: "agent" | "person" }>
 
 export type ActionKind = keyof typeof ACTIONS
 export const ACTION_KINDS = Object.keys(ACTIONS) as ActionKind[]
 export const isActionKind = (value: unknown): value is ActionKind => typeof value === "string" && value in ACTIONS
+export const AUTO_ACTIONS = ACTION_KINDS.filter((kind) => ACTIONS[kind].autonomy === "auto")

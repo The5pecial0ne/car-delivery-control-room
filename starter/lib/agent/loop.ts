@@ -6,6 +6,7 @@ import { datasetMetadata } from "@/lib/schema"
 import { db } from "./conn"
 import { AGENT_MODEL, openRouterComplete, type ChatMessage, type CompleteFn } from "./model"
 import { ACTIONS, isActionKind } from "./policy"
+import { isPersonLed } from "./labels"
 import { AGENT_ID, SYSTEM_PROMPT } from "./prompt"
 import { addStep, createCase, getCase, updateCase, type CaseRow, type CaseStatus } from "./store"
 import { findTool, toolSpecs } from "./tools"
@@ -87,11 +88,11 @@ async function loop(caseId: string, deps: Deps): Promise<void> {
       }
       if (!tool) content = { error: `There is no tool called ${call.function.name}.` }
       if (tool && content === undefined) {
-        const outcome = await tool.run(args, { caseRow, complete: deps.complete })
+        const outcome = await tool.run(args, { caseRow, complete: deps.complete, transcript })
         content = outcome.content
         if (outcome.summary) {
           await addStep(caseId, {
-            actor: "agent", kind: tool.kind === "finish" ? (outcome.finish?.status === "resolved" ? "note" : "proposal") : "lookup",
+            actor: "agent", kind: tool.kind === "act" ? "action" : tool.kind === "finish" ? (outcome.finish ? (outcome.finish.status === "resolved" ? "note" : "proposal") : "note") : "lookup",
             body: outcome.summary, data: { tool: tool.name, args, ...(outcome.finish?.pendingDecision ? { decision: outcome.finish.pendingDecision } : {}) },
           })
         }
@@ -124,17 +125,21 @@ export async function decide(caseId: string, input: { choice: Choice; note?: str
   const note = input.note?.trim()
 
   const said = {
-    approve: `${by} approved: ${label.toLowerCase()}.`,
+    approve: isPersonLed(action) ? `${by} did this: ${label.toLowerCase()}.` : `${by} approved: ${label.toLowerCase()}.`,
     change: `${by} wants something different${note ? `: ${note}` : "."}`,
     reject: `${by} said no to ${label.toLowerCase()}.`,
   }[input.choice]
   await addStep(caseId, { actor: "person", kind: "decision", body: note && input.choice !== "change" ? `${said} ${note}` : said, data: { choice: input.choice, action, note: note ?? null } })
 
   let instruction: string
-  if (input.choice === "approve") {
+  if (input.choice === "approve" && isPersonLed(action)) {
+    // A call or similar: the person did it, and what they write is the outcome.
+    // Nothing else happened, so the agent must not invent an answer from the customer.
+    instruction = `The person has done this themselves (${action}).${note ? ` What they report:\n${note}` : " They did not say how it went."}\nOnly what they report has happened, nothing else from your recommendation. Act on it within your permissions: tell the driver what is now decided, get any quotes the next step needs, then hand over the next decision or close the case. If the outcome is still open, hand over hold_and_wait with what you are waiting for.`
+  } else if (input.choice === "approve") {
     // Nothing real is connected, so carrying out an approved action means writing down that it happened.
-    await addStep(caseId, { actor: "system", kind: "action", body: `Done (simulated): ${decision.recommendation?.summary ?? label}`, data: { action, simulated: true } })
-    instruction = `The person approved your recommendation (${action}).${note ? ` Their note: ${note}` : ""} It has been carried out. Follow up within your permissions, then close the case or hand over the next decision.`
+    await addStep(caseId, { actor: "system", kind: "action", body: `Done (simulated): ${label}. ${decision.recommendation?.summary ?? ""}`.trim(), data: { action, simulated: true } })
+    instruction = `The person approved your recommendation (${action}).${note ? ` Their note: ${note}` : ""} Exactly that action has been carried out (${label.toLowerCase()}); anything else in your summary, such as telling the customer, has not happened unless the note says so. Follow up within your permissions, then close the case or hand over the next decision.`
   } else if (input.choice === "change") {
     instruction = `The person did not take your recommendation as it was. What they want instead: ${note || "(no note)"}. Work out what that means, then hand over a revised decision or close the case.`
   } else {

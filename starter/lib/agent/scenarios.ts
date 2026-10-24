@@ -13,7 +13,7 @@ export const SCENARIOS: Scenario[] = [
     orderId: "ord-00322",
     title: "Red warning light on the motorway",
     trigger: "Driver wrote in the app: stopped the Bentley Continental GT after a red warning came on and the car felt different when accelerating.",
-    driver: "You are parked at the Rasthof Holledau service area on the A9, northbound, about 60 km north of Munich, in the car park behind the fuel station. You feel safe, it is daylight and you have water. The engine is off. The red light is an engine symbol with the text 'Drivetrain malfunction, reduced power'. If asked for a photo, send one of the dashboard. You do not know what is wrong. You would rather not wait more than about three hours, because you have a train home tonight from Nuremberg, but you will stay if asked.",
+    driver: "You are parked at the Rasthof Göttingen service area on the A7, northbound, about 250 km south of Hamburg, in the car park behind the fuel station. You feel safe, it is daylight and you have water. The engine is off. The red light is an engine symbol with the text 'Drivetrain malfunction, reduced power'. If asked for a photo, send one of the dashboard. You do not know what is wrong. You would rather not wait more than about three hours, because you have a train home tonight from Göttingen, but you will stay if asked.",
   },
   {
     orderId: "ord-00299",
