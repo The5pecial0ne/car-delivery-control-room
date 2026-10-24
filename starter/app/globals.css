@@ -1316,6 +1316,49 @@ a.source:hover { text-decoration: underline; }
 .fold > summary:hover .fold-action { border-color: var(--ink); }
 .fold[open] > summary .fold-action { background: var(--canvas); }
 
+/* ══ The case at a glance ══
+   What is wrong, the one deadline, the priority, the one plan. Everything
+   else is a line underneath that opens on request. */
+.focus .case-headline { margin-top: 4px; font-size: 20px; }
+.case-issue { margin-top: 4px; font-size: 15px; line-height: 1.45; color: var(--brown); max-width: 68ch; }
+.case-deadline { margin-top: 14px; padding: 10px 14px 11px; border-left: 3px solid var(--red); border-radius: 0 4px 4px 0; background: var(--red-bg); }
+.case-deadline-main { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-family: var(--font-display); font-size: 17px; font-weight: 500; line-height: 1.3; color: var(--ink); }
+.case-deadline-main b { font-size: 22px; font-weight: 600; color: var(--red-ink); }
+.case-deadline-main .icon { flex: none; align-self: center; color: var(--red-ink); }
+.case-deadline-after { margin-top: 3px; padding-left: 24px; font-size: 13.5px; color: var(--brown); }
+.case-deadline:is(.tone-ok, .tone-subtle, .tone-neutral, .tone-warn) { border-left-color: var(--sand); background: var(--tray); }
+.case-deadline:is(.tone-ok, .tone-subtle, .tone-neutral, .tone-warn) .case-deadline-main :is(b, .icon) { color: var(--ink); }
+.case-deadline.tone-warn { border-left-color: var(--red); }
+.case-decide { margin-top: 18px; }
+.best-option { padding: 14px 16px 16px; }
+.best-title { font-size: 16.5px; }
+.impact-line { display: flex; flex-wrap: wrap; gap: 2px 0; margin-top: 8px; font-size: 13px; color: var(--brown); }
+.impact-line span:not(:last-child)::after { content: "·"; margin: 0 8px; color: var(--subtle); }
+.impact-line span:last-child { font-weight: 600; color: var(--ink); }
+.best-actions { margin-top: 14px; }
+.other-options > summary .fold-summary { color: var(--ink); font-weight: 500; }
+.option.is-best { background: var(--tray); border-radius: 4px; }
+.option.is-best .option-kicker { color: var(--ink); font-weight: 600; }
+.option .decision-draft { margin: 10px 0 0 30px; }
+.case-brief { display: grid; gap: 6px; margin-bottom: 12px; font-size: 13.5px; line-height: 1.5; color: var(--brown); max-width: 75ch; }
+.case-brief b { font-weight: 600; color: var(--ink); }
+.planb-line { display: inline; }
+.planb-line .pulse { display: inline-block; margin-right: 6px; vertical-align: middle; }
+.fold .planb { margin-top: 0; }
+.planb-sub { margin-top: 12px; font-size: 12px; font-weight: 600; color: var(--agent-ink); }
+.fold .hj { margin-top: 0; padding-top: 4px; border-top: 0; }
+.tl.tl-lookups { display: block; }
+.tl-lookups-head { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.tl-lookups-head .icon { color: var(--subtle); }
+.tl-lookups-head span { flex: 1; }
+@media (max-width: 600px) {
+  .focus .case-headline { font-size: 18px; }
+  .case-deadline-main { font-size: 15.5px; }
+  .case-deadline-main b { font-size: 19px; }
+  .case-deadline-after { padding-left: 0; }
+  .option .decision-draft { margin-left: 0; }
+}
+
 /* ══ Bahn touches ══════════════════════════════════════════════════════════
    The light look stays. Three things change: Manrope for body text and the
    interface, Poppins for headings, and in the sidebar the Bahn logo, red
@@ -1336,4 +1379,7 @@ button, input, textarea, select { font-family: var(--font-body); }
 .sidebar .nav-link.active:hover { background: var(--ink); }
 @media (max-width: 900px) {
   .sidebar .nav-link.active { box-shadow: none; }
+  /* In the top strip the logo must not shrink under the first nav item. */
+  .sidebar .wordmark { flex: none; }
+  .sidebar .wordmark span { display: none; }
 }

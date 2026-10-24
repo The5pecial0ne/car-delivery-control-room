@@ -19,8 +19,14 @@ export function useCaseNow(snapshotAt: string | null | undefined, createdAt: str
   return now
 }
 
+/**
+ * The soonest deadline still ahead. The agent does not always list them in
+ * time order, and a delivery promise days away must never hide the driver who
+ * has to leave in half an hour.
+ */
 export const nextDeadline = (deadlines: Deadline[] | undefined, now: number) =>
-  (deadlines ?? []).find((deadline) => new Date(deadline.at).getTime() > now) ?? null
+  (deadlines ?? []).filter((deadline) => new Date(deadline.at).getTime() > now)
+    .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())[0] ?? null
 
 export function Deadlines({ deadlines, now, zone }: { deadlines: Deadline[]; now: number; zone: string }) {
   const next = nextDeadline(deadlines, now)

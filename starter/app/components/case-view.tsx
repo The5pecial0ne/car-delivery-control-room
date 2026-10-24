@@ -1,21 +1,21 @@
 "use client"
 
-// One case, read top to bottom the way a person decides: what happened, what
-// the agent suggests, what it found and where each fact came from, then the
-// full story of how it got there. The decision sits above the history because
-// that is what the person came for.
+// One case, read in a few seconds: what is wrong, the next deadline that
+// cannot be undone, what to optimise for, the one recommended plan and what
+// needs approving. Everything the agent dug up (evidence, Plan B, the journey,
+// its trace, the order history) is one line each underneath and one click away.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { actionLabel, isPersonLed, parseSource, URGENCY, type Decision } from "@/lib/agent/labels"
+import { actionLabel, isPersonLed, parseSource, type Decision } from "@/lib/agent/labels"
 import { fmtClock } from "@/lib/present/time"
-import { cityOfZone, clockIn, countdown, zoneForCity } from "@/lib/agent/clock"
+import { countdown, zoneForCity } from "@/lib/agent/clock"
 import type { RankedPlanB } from "@/lib/agent/plan-b"
 import type { Priority } from "@/lib/agent/priority"
 import { Deadlines, nextDeadline, useCaseNow } from "./decision-extras"
-import { agentRows, BestOption, handOver, OtherOptions, PlanBPanel, PreparedOptions, priorityLabel, PrioritySwitch, usePlanB, usePriority, type Row as OptionRow } from "./recovery"
+import { agentRows, BestOption, CompareOptions, firstSentence, handOver, PlanBPanel, PreparedOptions, PrioritySwitch, usePlanB, usePriority, type Row as OptionRow } from "./recovery"
 import { SitePatternNotice } from "./site-pattern"
 import { evidenceCount, findingsOf, Investigation } from "./investigation"
-import { Disclosure, openFold } from "./disclosure"
+import { Disclosure } from "./disclosure"
 import { Icon } from "./icons"
 
 export type CaseSummary = {
@@ -42,6 +42,43 @@ const STATUS: Record<CaseSummary["status"], { label: string; tone: "warn" | "acc
   failed: { label: "Agent stopped", tone: "danger" },
 }
 
+// One label above the title. For a hand-over the urgency says more than "needs your decision".
+const URGENT_LABEL: Record<string, string> = { now: "Act now", today: "Decide today", can_wait: "Can wait" }
+
+// Deadlines read as "29 min until the driver must leave", so a common first word
+// loses its capital. Place names and days keep theirs.
+const COMMON_START = /^(Driver|Driver's|Customer|Customer's|Delivery|Pickup|Car|Ferry|Train|Last|Next|The|Check-in|Release|Handover|Promise|Collection|Booking|Return|Cannot|Can|Must|No|Breach|All|Only|Every|Delays?|Adds?)\b/
+const lowerStart = (text: string) => COMMON_START.test(text) ? text.charAt(0).toLowerCase() + text.slice(1) : text
+const sentence = (text: string) => /[.!?…]$/.test(text.trim()) ? text.trim() : `${text.trim()}.`
+
+/**
+ * The top of a case: one label, the car and route, one sentence on what is
+ * wrong, and the one deadline that matters next with what it costs to miss it.
+ */
+export function CaseHead({ label, tone, live, title, issue, deadline, note }: {
+  label: string | null; tone: "warn" | "accent" | "ok" | "danger"; live?: boolean; title: string; issue: string | null
+  deadline?: { left: string | null; what: string; after?: string | null; tone: string } | null
+  note?: ReactNode
+}) {
+  return <header className="case-top">
+    {label && <p className="case-state"><span className={`case-state-main tone-${tone}`}>{live && <span className="pulse" aria-hidden="true" />}{label}</span></p>}
+    <h2 className="case-headline">{title}</h2>
+    {issue && <p className="case-issue">{issue}</p>}
+    {deadline && <div className={`case-deadline tone-${deadline.tone}`} role="status">
+      <p className="case-deadline-main"><Icon name="waiting" size={16} />{deadline.left ? <><b className="num">{deadline.left}</b> until {lowerStart(deadline.what)}</> : <b>{deadline.what}</b>}</p>
+      {deadline.after && <p className="case-deadline-after">After that: {lowerStart(sentence(deadline.after))}</p>}
+    </div>}
+    {note}
+  </header>
+}
+
+/** A short, plain issue line: the agent's headline without its question, at most two sentences. */
+export function issueLine(...texts: (string | null | undefined)[]) {
+  const parts = texts.filter((text): text is string => !!text?.trim()).map((text) => firstSentence(text, 130))
+    .filter((text) => !text.endsWith("?"))
+  return parts.slice(0, 2).map(sentence).join(" ") || null
+}
+
 async function post(url: string, body: unknown) {
   const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
   if (!response.ok) throw new Error((await response.json().catch(() => ({})) as { error?: string }).error ?? "Something went wrong")
@@ -49,10 +86,12 @@ async function post(url: string, body: unknown) {
 
 export type CaseData = { case: CaseSummary; steps: Step[] }
 
-export function CaseView({ summary, snapshotAt, onChange, onLoaded, onPlan, timeline, after }: {
+export function CaseView({ summary, snapshotAt, onChange, onLoaded, onPlan, title, timeline, after }: {
   summary: CaseSummary; snapshotAt: string | null; onChange: () => void
+  /** Car and route, such as "BMW M4 · Helsinki → Turku". */
+  title?: string | null
   onLoaded?: (data: CaseData) => void; onPlan?: (plan: RankedPlanB | null) => void
-  /** The order's timeline, placed under the decision. */
+  /** The order's journey line, folded under the decision. */
   timeline?: ReactNode
   /** More folded sections, such as the order record. */
   after?: ReactNode
@@ -112,27 +151,16 @@ export function CaseView({ summary, snapshotAt, onChange, onLoaded, onPlan, time
 
   const found = evidenceCount(history.at(-1))
   const deadlines = decision?.deadlines ?? []
+  const route = order ? [order.car, order.from && order.to ? `${order.from} → ${order.to}` : null].filter(Boolean).join(" · ") : ""
+  const label = decision?.urgency ? URGENT_LABEL[decision.urgency] ?? status.label : status.label
 
   return <article className="case">
-    <header className="case-top">
-      <p className="case-state">
-        <span className={`case-state-main tone-${status.tone}`}>{live && <span className="pulse" aria-hidden="true" />}{status.label}</span>
-        {decision?.urgency && URGENCY[decision.urgency] && <span>Urgency: {URGENCY[decision.urgency].label}</span>}
-      </p>
-      <h2 className={`case-headline${detail.status === "failed" ? " tone-danger" : ""}`}>{detail.headline ?? detail.trigger}</h2>
-      {decision?.situation && <p className="case-situation">{decision.situation}</p>}
-      {found && <p className="case-found">
-        <Icon name="bot" size={13} />
-        <span>Agent checked {found.sources} source{found.sources === 1 ? "" : "s"} and found {found.conflicts ? `${found.conflicts} conflict${found.conflicts === 1 ? "" : "s"}` : "no open conflict"}{found.unknown ? `, ${found.unknown} thing${found.unknown === 1 ? "" : "s"} still unknown` : ""}.</span>
-        <button type="button" className="link-button" onClick={() => openFold("evidence")}>Show evidence<Icon name="arrow" size={12} /></button>
-      </p>}
-      {next && left && <p className={`case-countdown tone-${left.tone}`}>
-        <Icon name="waiting" size={14} /><b className="num">{left.left}</b> until {next.what.charAt(0).toLowerCase() + next.what.slice(1)}
-        {next.miss && <small>If missed: {next.miss}</small>}
-      </p>}
-      {decision && !next && !!deadlines.length && <p className="case-countdown tone-danger"><Icon name="alert" size={14} />Every deadline on this case has passed.</p>}
-      {!decision && detail.status === "working" && <p className="case-working">The agent is looking into this. It will bring you a decision if it needs one.</p>}
-    </header>
+    <CaseHead label={label} tone={decision?.urgency === "now" ? "danger" : status.tone} live={live}
+      title={title || route || (detail.headline ?? detail.trigger)}
+      issue={detail.status === "failed" ? detail.headline ?? detail.trigger : issueLine(detail.headline ?? detail.trigger)}
+      deadline={next && left ? { left: left.left, what: next.what, after: next.miss, tone: left.tone }
+        : decision && deadlines.length ? { left: null, what: "Every deadline on this case has passed.", tone: "danger" } : null}
+      note={!decision && detail.status === "working" ? <p className="case-working">The agent is looking into this. It will bring you a decision if it needs one.</p> : null} />
     {error && <p className="board-error case-error" role="alert">{error}</p>}
 
     <section className="case-decide" id="decide" aria-label="Decision">
@@ -140,30 +168,32 @@ export function CaseView({ summary, snapshotAt, onChange, onLoaded, onPlan, time
       {decision && <DecisionPanel decision={decision} zone={zone} priority={priority} onAct={(body) => act(`/api/cases/${detail.id}/decision`, body)} />}
       {!decision && planB.plan && <PreparedOptions plan={planB.plan} priority={priority}
         busy={live ? "The agent is still investigating" : false}
-        onHandOver={live ? null : async (title) => {
-          try { await handOver(detail.orderId, detail.headline ?? detail.trigger, title, priority); onChange() } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not start the agent") }
+        onHandOver={live ? null : async (option) => {
+          try { await handOver(detail.orderId, detail.headline ?? detail.trigger, option, priority); onChange() } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not start the agent") }
         }} />}
     </section>
 
-    {timeline}
-
-    <PlanBPanel state={planB} onRefresh={planB.refresh} agentPlan={decision?.plan_b} zone={zone} busy={live}
-      onSwitch={decision?.plan_b ? () => act(`/api/cases/${detail.id}/decision`, { choice: "change", note: `Switch to plan B now (what matters most today: ${priority}): ${decision.plan_b?.summary ?? ""}` }) : undefined} />
-
     <div className="folds">
-      {(found || decision?.facts?.length || decision?.unknowns?.length) ? <Disclosure id="evidence" tone="agent"
+      {(found || decision) ? <Disclosure id="evidence" tone="agent"
         summary={found
-          ? <>Evidence: {found.facts} fact{found.facts === 1 ? "" : "s"} from {found.sources} source{found.sources === 1 ? "" : "s"}, {found.conflicts} open conflict{found.conflicts === 1 ? "" : "s"}. Key question {found.answered ? "answered" : "not answered yet"}.</>
-          : <>Evidence behind the suggestion: {decision?.facts?.length ?? 0} facts, {decision?.unknowns?.length ?? 0} unknowns.</>}
-        action="Show evidence">
+          ? <>Agent checked {found.sources} source{found.sources === 1 ? "" : "s"} and found {found.conflicts ? `${found.conflicts} conflict${found.conflicts === 1 ? "" : "s"}` : "no open conflict"}{found.unknown ? `, ${found.unknown} thing${found.unknown === 1 ? "" : "s"} still unknown` : ""}.</>
+          : <>What the agent found: {decision?.facts?.length ?? 0} fact{decision?.facts?.length === 1 ? "" : "s"}, {decision?.unknowns?.length ?? 0} still unknown.</>}
+        action="View evidence">
+        {(decision?.situation || decision?.impact) && <section className="case-brief" aria-label="The agent's summary">
+          {decision.situation && <p><b>What happened:</b> {decision.situation}</p>}
+          {decision.impact && <p><b>Effect on delivery:</b> {decision.impact}</p>}
+        </section>}
         <Investigation history={history} byId={byId} now={now} zone={zone} />
         {decision && <Findings decision={decision} steps={steps ?? []} />}
       </Disclosure> : null}
-      {deadlines.length > 1 && <Disclosure summary={<>{deadlines.length} deadlines on this case{next ? <>, next {clockIn(next.at, zone)} {cityOfZone(zone)} time</> : null}.</>} action="Show all deadlines">
+      <PlanBPanel state={planB} onRefresh={planB.refresh} agentPlan={decision?.plan_b} zone={zone} busy={live}
+        onSwitch={decision?.plan_b ? () => act(`/api/cases/${detail.id}/decision`, { choice: "change", note: `Switch to plan B now (what matters most today: ${priority}): ${decision.plan_b?.summary ?? ""}` }) : undefined} />
+      {deadlines.length > 1 && <Disclosure summary={<>{deadlines.length} milestones on this case, from the next one to delivery.</>} action="View all milestones">
         <Deadlines deadlines={deadlines} now={now} zone={zone} />
       </Disclosure>}
+      {timeline}
       <SitePatternNotice orderId={detail.orderId} />
-      <Disclosure id="agent-trace" tone="agent" summary={<>Agent activity: {steps ? `${steps.length} step${steps.length === 1 ? "" : "s"}` : "loading"}{lastStep ? <>. Latest, {fmtClock(lastStep.createdAt)}: {clip(lastStep.body)}</> : null}</>} action="Show agent trace">
+      <Disclosure id="agent-trace" tone="agent" summary={<>Agent activity: {steps ? `${steps.length} step${steps.length === 1 ? "" : "s"}` : "loading"}{lastStep ? <>. Latest, {fmtClock(lastStep.createdAt)}: {clip(lastStep.body)}</> : null}</>} action="View agent trace">
         {!steps && <p className="empty">Loading…</p>}
         {steps && <Timeline steps={steps} live={live} />}
       </Disclosure>
@@ -192,40 +222,33 @@ function DecisionPanel({ decision, zone, priority, onAct }: { decision: Decision
     const sent = recommendation.customer_message_draft ? `${edited ? "Edited customer message, as sent" : "Customer message sent as drafted"}: ${draft.trim()}` : ""
     run({ choice: "approve", note: [outcome?.trim() && `How it went: ${outcome.trim()}`, sent].filter(Boolean).join("\n\n") || undefined })
   }
-  const approveLabel = personLed ? "I did this" : "Approve"
-  const onApprove = () => personLed ? setMode("done") : approve()
+  // The agent's own pick is approved as it stands (a step the person does
+  // themselves first asks how it went). Any other option goes back to the
+  // agent as "do this instead", exactly as before, so nothing runs without
+  // the same checks.
   const choose = (row: OptionRow) => row.option && run({ choice: "change", note: `${row.tag === "Plan B" ? "Switch to plan B" : "Do this instead"} (what matters most today: ${priority}): ${row.option.summary ?? row.title}` })
+  const approveRow = (row: OptionRow) => row.tag === "Agent's pick" ? (personLed ? setMode("done") : approve()) : choose(row)
   const best = rows[0] ?? { key: "pick", tag: "Agent's pick", title: actionLabel(recommendation.action), summary: recommendation.summary ?? null, why: "", arrives: null, cost: null, costBasis: null, certainty: null, risk: null, approval: true }
   const bestIsPick = best.tag === "Agent's pick"
-  const pick = rows.find((row) => row.tag === "Agent's pick")
-  const pickRank = pick ? rows.indexOf(pick) + 1 : 0
+  const edit = () => { setNote(best.option?.summary ?? best.summary ?? best.title); setMode("change") }
+  const draftBox = recommendation.customer_message_draft != null && <label className="decision-draft">
+    <span>Message to the customer <small>Sent only when you approve the agent's pick. The agent never sends it.</small></span>
+    <textarea value={draft} onChange={(event) => setDraft(event.target.value)} rows={3} />
+  </label>
 
   return <section className="decision" aria-label="Decision">
-    <BestOption row={best} priority={priority}
-      note={<>
-        {decision.impact && bestIsPick && <p className="decision-impact"><b>Effect on delivery:</b> {decision.impact}</p>}
-        {!bestIsPick && pick && <p className="decision-pick">The agent's own pick, <b>{pick.title.toLowerCase()}</b>, ranks {pickRank} for {priorityLabel(priority).toLowerCase()}. You can still approve it.</p>}
-        {recommendation.customer_message_draft != null && <label className="decision-draft">
-          <span>Message to the customer, with the agent's pick <small>The agent never sends this. You do, when you approve.</small></span>
-          <textarea value={draft} onChange={(event) => setDraft(event.target.value)} rows={3} />
-        </label>}
-      </>}>
+    <BestOption row={best} note={bestIsPick ? draftBox : null}>
       {mode === "idle" && <div className="decision-buttons">
-        {bestIsPick
-          ? <button type="button" className="btn primary" disabled={busy} onClick={onApprove}><Icon name="check" size={14} />{approveLabel}</button>
-          : <>
-              <button type="button" className="btn primary" disabled={busy} onClick={() => choose(best)}><Icon name="check" size={14} />Choose this</button>
-              <button type="button" className="btn" disabled={busy} onClick={onApprove}>{personLed ? "I did the agent's pick" : "Approve the agent's pick"}</button>
-            </>}
-        <button type="button" className="btn quiet" disabled={busy} onClick={() => setMode("change")}>Do something else</button>
+        <button type="button" className="btn primary" disabled={busy} onClick={() => approveRow(best)}><Icon name="check" size={14} />Approve plan</button>
+        <button type="button" className="btn" disabled={busy} onClick={edit}>Edit plan</button>
         <button type="button" className="btn quiet danger" disabled={busy} onClick={() => setMode("reject")}>Reject</button>
       </div>}
     </BestOption>
 
     {mode !== "idle" && <form className="decision-note" onSubmit={(event) => { event.preventDefault(); if (mode === "done") approve(note); else run({ choice: mode, note }) }}>
       <label>
-        <span>{{ done: "How did it go? The agent picks up from here.", change: "What should happen instead?", reject: "Why not? (optional)" }[mode]}</span>
-        <textarea autoFocus value={note} onChange={(event) => setNote(event.target.value)} rows={3}
+        <span>{{ done: "How did it go? The agent picks up from here.", change: "Edit the plan. The agent checks it and comes back to you before anything is booked or sent.", reject: "Why not? (optional)" }[mode]}</span>
+        <textarea autoFocus value={note} onChange={(event) => setNote(event.target.value)} rows={mode === "change" ? 4 : 3}
           placeholder={{
             done: "For example: the dealer will send their own Bentley assistance within two hours. Driver should wait with the car.",
             change: "For example: the dealer will send their own assistance, tell the driver to wait",
@@ -233,14 +256,14 @@ function DecisionPanel({ decision, zone, priority, onAct }: { decision: Decision
           }[mode]} />
       </label>
       <div className="decision-buttons">
-        <button type="submit" className={`btn ${mode === "reject" ? "danger" : "primary"}`} disabled={busy || (mode !== "reject" && !note.trim())}>{mode === "reject" ? "Reject" : "Tell the agent"}</button>
+        <button type="submit" className={`btn ${mode === "reject" ? "danger" : "primary"}`} disabled={busy || (mode !== "reject" && !note.trim())}>{{ done: "Tell the agent", change: "Send edited plan", reject: "Reject" }[mode]}</button>
         <button type="button" className="btn quiet" onClick={() => { setMode("idle"); setNote("") }}>Cancel</button>
       </div>
     </form>}
 
-    {mode === "idle" && <OtherOptions rows={rows.slice(1)} priority={priority} action={(row) => row.tag === "Agent's pick"
-      ? <button type="button" className="btn primary small" disabled={busy} onClick={onApprove}>{approveLabel}</button>
-      : <button type="button" className="btn small" disabled={busy} onClick={() => choose(row)}>Choose this</button>} />}
+    {mode === "idle" && <CompareOptions rows={rows} priority={priority}
+      action={(row) => <button type="button" className={`btn small${row.tag === "Agent's pick" ? " primary" : ""}`} disabled={busy} onClick={() => approveRow(row)}>Approve plan</button>}
+      extra={(row) => row.tag === "Agent's pick" && !bestIsPick ? draftBox : null} />}
   </section>
 }
 
@@ -286,10 +309,8 @@ function Timeline({ steps, live }: { steps: Step[]; live: boolean }) {
   return <ol className="timeline">
     {rows.map((row) => row.type === "lookups"
       ? <li className="tl tl-lookups" key={row.steps[0].id}>
-          <details>
-            <summary><Icon name="search" size={13} /><span>Looked up {row.steps.length} thing{row.steps.length === 1 ? "" : "s"}</span><time>{fmtClock(row.steps[0].createdAt)}</time></summary>
-            <ul>{row.steps.map((step) => <li key={step.id} id={step.id}>{step.body}</li>)}</ul>
-          </details>
+          <p className="tl-lookups-head"><Icon name="search" size={13} /><span>Looked up {row.steps.length} thing{row.steps.length === 1 ? "" : "s"}</span><time>{fmtClock(row.steps[0].createdAt)}</time></p>
+          <ul>{row.steps.map((step) => <li key={step.id} id={step.id}>{step.body}</li>)}</ul>
         </li>
       : <StepRow step={row.step} key={row.step.id} />)}
     {live && <li className="tl tl-live"><span className="pulse" aria-hidden="true" />Working…</li>}
