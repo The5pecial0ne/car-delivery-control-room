@@ -59,7 +59,7 @@ function locate(text: string): [number, number] | null {
 }
 
 /** Road distance in km between two places, or null if we do not know one of them. */
-function roadKm(from: string, to: string): number | null {
+export function roadKm(from: string, to: string): number | null {
   const a = locate(from), b = locate(to)
   if (!a || !b) return null
   const rad = Math.PI / 180

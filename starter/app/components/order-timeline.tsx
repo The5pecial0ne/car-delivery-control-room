@@ -6,7 +6,7 @@
 // read the colours.
 
 import { useEffect, useMemo, useState } from "react"
-import { buildTimeline, type AgentCaseLike, type AgentStepLike, type TimelineEntry, type TimelineState } from "@/lib/present/timeline"
+import { buildTimeline, type AgentCaseLike, type AgentStepLike, type PlanBLike, type TimelineEntry, type TimelineState } from "@/lib/present/timeline"
 import { fmtClock, fmtLong, fmtWeekday, zoneName } from "@/lib/present/time"
 import type { RecordView } from "@/lib/present/types"
 import { Icon } from "./icons"
@@ -23,8 +23,8 @@ const LEGEND: { state: TimelineState; label: string }[] = [
 const FOLD_OVER = 12
 const KEEP_BEFORE_PROBLEM = 2
 
-export function OrderTimeline({ view, agentCase, steps, now }: { view: RecordView; agentCase?: AgentCaseLike | null; steps?: AgentStepLike[] | null; now?: number }) {
-  const timeline = useMemo(() => buildTimeline(view, { agentCase, steps, now }), [view, agentCase, steps, now])
+export function OrderTimeline({ view, agentCase, steps, now, planB }: { view: RecordView; agentCase?: AgentCaseLike | null; steps?: AgentStepLike[] | null; now?: number; planB?: PlanBLike | null }) {
+  const timeline = useMemo(() => buildTimeline(view, { agentCase, steps, now, planB }), [view, agentCase, steps, now, planB])
   const [open, setOpen] = useState(false)
   const zone = view.header.to.zone ?? view.header.from.zone
   const { entries, nowIndex, issues } = timeline

@@ -9,8 +9,11 @@ import Link from "next/link"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { actionLabel, isPersonLed, parseSource, URGENCY, type Decision } from "@/lib/agent/labels"
 import { fmtClock } from "@/lib/present/time"
-import { zoneForCity } from "@/lib/agent/clock"
-import { Deadlines, OptionCompare, PlanBPanel, useCaseNow } from "./decision-extras"
+import { countdown, zoneForCity } from "@/lib/agent/clock"
+import type { RankedPlanB } from "@/lib/agent/plan-b"
+import type { Priority } from "@/lib/agent/priority"
+import { Deadlines, nextDeadline, useCaseNow } from "./decision-extras"
+import { AgentOptions, handOver, PlanBPanel, PreparedOptions, PrioritySwitch, usePlanB, usePriority } from "./recovery"
 import { SitePatternNotice } from "./site-pattern"
 import { findingsOf, Investigation } from "./investigation"
 import { Icon } from "./icons"
@@ -45,7 +48,10 @@ async function post(url: string, body: unknown) {
 
 export type CaseData = { case: CaseSummary; steps: Step[] }
 
-export function CaseView({ summary, snapshotAt, onBack, onChange, onLoaded }: { summary: CaseSummary; snapshotAt: string | null; onBack: () => void; onChange: () => void; onLoaded?: (data: CaseData) => void }) {
+export function CaseView({ summary, snapshotAt, onBack, onChange, onLoaded, onPlan }: {
+  summary: CaseSummary; snapshotAt: string | null; onBack: () => void; onChange: () => void
+  onLoaded?: (data: CaseData) => void; onPlan?: (plan: RankedPlanB | null) => void
+}) {
   const [steps, setSteps] = useState<Step[] | null>(null)
   const [detail, setDetail] = useState<CaseSummary>(summary)
   const [error, setError] = useState("")
@@ -89,6 +95,14 @@ export function CaseView({ summary, snapshotAt, onBack, onChange, onLoaded }: { 
   const zone = zoneForCity(order?.to)
   const history = useMemo(() => findingsOf(steps ?? []), [steps])
   const byId = useMemo(() => new Map((steps ?? []).map((step) => [step.id, step])), [steps])
+  const [priority, setPriority] = usePriority()
+  const planB = usePlanB(detail.orderId, priority, onPlan)
+  // Each time the agent updates what it knows, Plan B is looked up again.
+  const { refresh: refreshPlan } = planB
+  const rounds = history.length
+  useEffect(() => { if (rounds) refreshPlan() }, [rounds]) // eslint-disable-line react-hooks/exhaustive-deps
+  const next = decision ? nextDeadline(decision.deadlines, now) : null
+  const left = next ? countdown(next.at, now) : null
 
   return <article className="case">
     <button type="button" className="mail-back" onClick={onBack}><Icon name="chevron" size={13} style={{ transform: "rotate(180deg)" }} /> All cases</button>
@@ -104,18 +118,29 @@ export function CaseView({ summary, snapshotAt, onBack, onChange, onLoaded }: { 
     </div>
     <h2 className={`story-headline case-headline${detail.status === "failed" ? " tone-danger" : ""}`}>{detail.headline ?? detail.trigger}</h2>
     {decision?.situation && <p className="story-detail case-situation">{decision.situation}</p>}
+    {decision && <a className="case-jump" href="#decide">
+      <Icon name="proposal" size={14} /><span><b>Decision needed:</b> {actionLabel(decision.recommendation?.action).toLowerCase()}{next && left ? <>, <b className={`num tone-${left.tone}`}>{left.left}</b> until {next.what.charAt(0).toLowerCase() + next.what.slice(1)}</> : null}</span><Icon name="arrow" size={13} />
+    </a>}
     {!decision && detail.status === "working" && <p className="case-working">The agent is looking into this. It will bring you a decision if it needs one.</p>}
     {error && <p className="board-error case-error" role="alert">{error}</p>}
 
     <SitePatternNotice orderId={detail.orderId} />
     <Investigation history={history} byId={byId} now={now} zone={zone} />
 
-    {decision && <section className="stage stage-two" aria-label="Recovery">
+    <section className="stage stage-two" id="decide" aria-label="Recovery">
       <p className="stage-label"><span className="stage-num">2</span>Recovery <small>What can we do? What does each option cost or break? How much time is left? What do you approve?</small></p>
-      {!!decision.deadlines?.length && <Deadlines deadlines={decision.deadlines} now={now} zone={zone} />}
-      <DecisionPanel decision={decision} zone={zone} onAct={(body) => act(`/api/cases/${detail.id}/decision`, body)} />
-      <Findings decision={decision} steps={steps ?? []} />
-    </section>}
+      {!!decision?.deadlines?.length && <Deadlines deadlines={decision.deadlines} now={now} zone={zone} />}
+      <PrioritySwitch priority={priority} onChange={setPriority} />
+      {decision && <DecisionPanel decision={decision} zone={zone} priority={priority} onAct={(body) => act(`/api/cases/${detail.id}/decision`, body)} />}
+      {!decision && planB.plan && <PreparedOptions plan={planB.plan} priority={priority}
+        busy={live ? "The agent is still investigating" : false}
+        onHandOver={live ? null : async (title) => {
+          try { await handOver(detail.orderId, detail.headline ?? detail.trigger, title, priority); onChange() } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not start the agent") }
+        }} />}
+      <PlanBPanel state={planB} onRefresh={planB.refresh} agentPlan={decision?.plan_b} zone={zone} busy={live}
+        onSwitch={decision?.plan_b ? () => act(`/api/cases/${detail.id}/decision`, { choice: "change", note: `Switch to plan B now (what matters most today: ${priority}): ${decision.plan_b?.summary ?? ""}` }) : undefined} />
+      {decision && <Findings decision={decision} steps={steps ?? []} />}
+    </section>
 
     <section className="case-story" aria-label="What happened">
       <h3 className="case-sec-title">Agent activity <small>every lookup, question and answer</small></h3>
@@ -127,13 +152,11 @@ export function CaseView({ summary, snapshotAt, onBack, onChange, onLoaded }: { 
   </article>
 }
 
-function DecisionPanel({ decision, zone, onAct }: { decision: Decision; zone: string; onAct: (body: { choice: string; note?: string }) => Promise<void> }) {
+function DecisionPanel({ decision, zone, priority, onAct }: { decision: Decision; zone: string; priority: Priority; onAct: (body: { choice: string; note?: string }) => Promise<void> }) {
   const recommendation = decision.recommendation ?? {}
   const [draft, setDraft] = useState(recommendation.customer_message_draft ?? "")
   const [mode, setMode] = useState<"idle" | "done" | "change" | "reject">("idle")
   const personLed = isPersonLed(recommendation.action)
-  // Older hand-overs have no scores; they keep the plain "Or instead" list.
-  const scored = !!recommendation.certainty
   const [note, setNote] = useState("")
   const [busy, setBusy] = useState(false)
 
@@ -181,19 +204,9 @@ function DecisionPanel({ decision, zone, onAct }: { decision: Decision; zone: st
       </div>
     </form>}
 
-    {mode === "idle" && scored && <OptionCompare zone={zone} busy={busy}
-      options={[{ option: recommendation, tag: "Recommended" }, ...(decision.alternatives ?? []).map((option, index) => ({ option, tag: `Option ${index + 2}` })), ...(decision.plan_b ? [{ option: decision.plan_b, tag: "Plan B" }] : [])]}
-      onChoose={(option, priority, tag) => run({ choice: "change", note: `${tag === "Plan B" ? "Switch to plan B" : "Do this instead"}${priority === "balanced" ? "" : ` (what matters most today: ${priority})`}: ${option.summary}` })} />}
-    {mode === "idle" && decision.plan_b && <PlanBPanel plan={decision.plan_b} zone={zone} busy={busy}
-      onSwitch={() => run({ choice: "change", note: `Switch to plan B now: ${decision.plan_b?.summary ?? ""}` })} />}
-    {mode === "idle" && !scored && !!decision.alternatives?.length && <div className="decision-alts">
-      <p>Or instead</p>
-      <ul>{decision.alternatives.map((alternative, index) => <li key={index}>
-        <button type="button" className="alt" disabled={busy} onClick={() => run({ choice: "change", note: `Do this instead: ${alternative.summary}` })}>
-          <b>{actionLabel(alternative.action)}</b><span>{alternative.summary}</span><Icon name="arrow" size={13} />
-        </button>
-      </li>)}</ul>
-    </div>}
+    {mode === "idle" && <AgentOptions decision={decision} zone={zone} priority={priority} busy={busy}
+      approveLabel={personLed ? "I did this" : "Approve"} onApprove={() => personLed ? setMode("done") : approve()}
+      onChoose={(option, tag) => run({ choice: "change", note: `${tag === "Plan B" ? "Switch to plan B" : "Do this instead"} (what matters most today: ${priority}): ${option.summary}` })} />}
   </section>
 }
 

@@ -35,10 +35,10 @@ export function QueueCard({ card, agentCase, snapshotAt, wall, active, onSelect 
   const next = decision && agentCase ? nextDeadline(decision.deadlines, caseNow(snapshotAt, agentCase.createdAt, wall)) : null
   if (next && agentCase) {
     const left = countdown(next.at, caseNow(snapshotAt, agentCase.createdAt, wall))
-    deadline = { text: `${left.left} until ${lower(next.what)}`, tone: left.tone }
+    deadline = { text: `${left.left} left`, tone: left.tone }
   } else if (card.decisive) {
     const date = card.decisive
-    deadline = { text: `${date.label} ${dateText(date.start, date.end, date.zone)}${date.note ? ` · ${date.note}` : ""}`, tone: date.tone }
+    deadline = { text: date.note && /^in /.test(date.note) ? `${date.label.toLowerCase()} ${date.note}` : `${date.label.toLowerCase()} ${dateText(date.start, date.end, date.zone)}`, tone: date.tone }
   }
 
   const proposal = card.attention.find((item) => item.kind === "proposal")
@@ -51,16 +51,16 @@ export function QueueCard({ card, agentCase, snapshotAt, wall, active, onSelect 
 
   return <button type="button" className={`queue-card sev-${card.attentionTone}${active ? " active" : ""}`} onClick={() => onSelect(card.id)} aria-current={active ? "true" : undefined}>
     <span className="queue-card-top">
-      <span className={`sev-tag tone-${card.attentionTone}`}><Icon name={SEVERITY_ICON[card.attentionTone]} size={12} />{SEVERITY[card.attentionTone]}</span>
-      {status && <span className={`sev-tag tone-${status.tone}`}>{agentCase?.status === "working" ? <span className="pulse" aria-hidden="true" /> : <Icon name="bot" size={12} />}{status.label}</span>}
+      <span className={`sev-tag sev-${card.attentionTone}`}><Icon name={SEVERITY_ICON[card.attentionTone]} size={12} />{SEVERITY[card.attentionTone]}</span>
       <span className="queue-card-ref mono">{card.reference}</span>
+      {deadline && <span className={`queue-card-when tone-${deadline.tone}`} title="Next deadline">{deadline.text}</span>}
     </span>
     <span className="queue-card-car">{card.vehicle}<small>{card.from.city}<Icon name="arrow" size={11} />{card.to.city}</small></span>
     {wrong && <span className="queue-card-wrong">{wrong}</span>}
-    <span className="queue-card-facts">
-      {why && <span className="queue-fact"><span className="queue-fact-k">Why a person</span><span className="queue-fact-v">{why}</span></span>}
-      {deadline && <span className="queue-fact"><span className="queue-fact-k">Next deadline</span><span className={`queue-fact-v tone-${deadline.tone}`}>{deadline.text}</span></span>}
-      <span className="queue-fact"><span className="queue-fact-k">Agent checked</span><span className="queue-fact-v">{checked}</span></span>
+    {why && <span className="queue-card-why">{why}</span>}
+    <span className={`queue-card-agent${agentCase ? ` is-${agentCase.status}` : ""}`}>
+      {agentCase?.status === "working" ? <span className="pulse" aria-hidden="true" /> : <Icon name="bot" size={12} />}
+      {status ? <b>{status.label}.</b> : null} {checked}
     </span>
   </button>
 }
@@ -72,10 +72,9 @@ export function WatchCard({ card, snapshotAt, active, onSelect }: { card: BoardC
   const milestone = driver?.text ?? (date ? `${date.label} ${dateText(date.start, date.end, date.zone)}` : null)
   const updated = relativeTo(card.updatedAt, snapshotAt)
   return <button type="button" className={`watch-card${active ? " active" : ""}`} onClick={() => onSelect(card.id)} aria-current={active ? "true" : undefined}>
-    <span className="watch-card-top"><span className="mono">{card.reference}</span><span className="watch-card-car">{card.vehicle}</span></span>
-    <span className="watch-card-route">{card.from.city}<Icon name="arrow" size={11} />{card.to.city}</span>
-    <span className={`watch-card-status tone-${status.tone}`}><Icon name={status.tone === "ok" ? "check" : "dot"} size={12} />{status.label} · {card.statusLabel}</span>
+    <span className="watch-card-top"><span className="watch-card-car">{card.vehicle}</span><span className="mono">{card.reference}</span></span>
+    <span className="watch-card-route">{card.from.city}<Icon name="arrow" size={11} />{card.to.city}<span className={`watch-card-status tone-${status.tone}`}><Icon name={status.tone === "ok" ? "check" : "dot"} size={11} />{status.label}</span></span>
     {milestone && <span className="watch-card-next">{milestone}</span>}
-    <span className="watch-card-when">Last update <time dateTime={card.updatedAt}>{fmtDateTime(card.updatedAt, date?.zone ?? null)}</time>{updated ? ` · ${updated.text}` : ""}</span>
+    <span className="watch-card-when">Updated <time dateTime={card.updatedAt}>{fmtDateTime(card.updatedAt, date?.zone ?? null)}</time>{updated ? ` · ${updated.text}` : ""}</span>
   </button>
 }

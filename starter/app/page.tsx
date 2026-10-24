@@ -5,9 +5,10 @@
 // going to plan, so nobody has to wonder about it. Pick any order to see its
 // timeline and, when the agent has a case on it, the case itself.
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { laneLabel } from "@/lib/present/labels"
-import { latestCases, splitQueue } from "@/lib/present/queue"
+import { latestCases, needsAttention, splitQueue } from "@/lib/present/queue"
+import type { BoardCard } from "@/lib/present/types"
 import type { Overview } from "@/lib/present/types"
 import { AppFrame } from "./components/app-frame"
 import type { CaseSummary } from "./components/case-view"
@@ -63,6 +64,14 @@ export default function ControlRoom() {
   const cases = useMemo(() => latestCases(listing?.cases ?? []), [listing])
   const { attention, monitored } = useMemo(() => splitQueue(overview?.visible ?? [], cases), [overview, cases])
   const snapshotAt = overview?.snapshotAt ?? listing?.snapshotAt ?? null
+  // Every card seen so far, so the selected order keeps its context while a search hides it.
+  const known = useRef(new Map<string, BoardCard>())
+  for (const card of overview?.visible ?? []) known.current.set(card.id, card)
+  const selectedCard = selected ? known.current.get(selected) ?? null : null
+  const selectedCase = selected ? cases.get(selected) ?? null : null
+  const problem = selectedCard && needsAttention(selectedCard, selectedCase)
+    ? { title: (selectedCase?.status === "needs_person" ? selectedCase.headline : null) ?? selectedCard.attention[0]?.title ?? "Waiting for a decision", tone: selectedCard.attentionTone }
+    : null
 
   // Start on the order in the address, or the most pressing one. Older links point at a case.
   useEffect(() => {
@@ -100,12 +109,10 @@ export default function ControlRoom() {
 
   return <AppFrame section="desk" snapshotAt={snapshotAt}><main className={`control${showList ? "" : " reading"}`}>
     <header className="control-head">
-      <div className="board-title">
-        <h1>Control room</h1>
-        <p className="board-sub">{overview
-          ? <><b>{attention.length}</b> need attention{waiting ? <> · <b>{waiting}</b> waiting for your decision</> : null} · <b>{monitored.length}</b> on track or done{search ? " matching your search" : ""}</>
-          : "Loading the snapshot"}</p>
-      </div>
+      <h1>Control room</h1>
+      <p className="control-sum">{overview
+        ? <><span className="sum-alert"><b className="num">{attention.length}</b> need attention</span>{waiting ? <span><b className="num">{waiting}</b> waiting for your decision</span> : null}<span><b className="num">{monitored.length}</b> on track or done</span>{search ? <span>matching “{search}”</span> : null}</>
+        : "Loading the snapshot"}</p>
       <label className="search">
         <span className="sr-only">Search orders</span>
         <Icon name="search" />
@@ -116,8 +123,8 @@ export default function ControlRoom() {
     {error && <p className="board-error" role="alert">{error}. Check that the local database is running and seeded.</p>}
 
     <section className="control-queue" aria-labelledby="queue-title">
-      <h2 className="control-col-title" id="queue-title"><Icon name="alert" size={14} />Needs attention<span className="num">{overview ? attention.length : ""}</span></h2>
-      {loading && <ul className="queue-list" aria-busy="true">{[0, 1, 2].map((index) => <li className="skeleton" key={index} />)}</ul>}
+      <h2 className="control-col-title" id="queue-title">Needs attention<span className="num">{overview ? attention.length : ""}</span><small>Most urgent first</small></h2>
+      {loading && <ul className="queue-list" aria-busy="true">{[0, 1, 2].map((index) => <li className="skeleton queue-skeleton" key={index} />)}</ul>}
       {overview && attention.length === 0 && <div className="desk-empty">
         <Icon name="check" size={18} />
         <p>{search ? <><b>No order that needs attention matches “{search}”.</b></> : <><b>Everything is currently on track.</b><br />When something goes wrong it shows up here with what is wrong and how long is left.</>}</p>
@@ -137,12 +144,12 @@ export default function ControlRoom() {
 
     <section className="control-read" aria-label="Selected order">
       {selected
-        ? <OrderFocus key={selected} orderId={selected} agentCase={cases.get(selected) ?? null} snapshotAt={snapshotAt} onBack={() => setShowList(true)} onChange={loadCases} />
+        ? <OrderFocus key={selected} orderId={selected} agentCase={selectedCase} problem={problem} snapshotAt={snapshotAt} onBack={() => setShowList(true)} onChange={loadCases} />
         : <p className="empty desk-read-empty">{overview ? "Choose an order to see its timeline." : "Loading…"}</p>}
     </section>
 
     <aside className="control-watch" aria-labelledby="watch-title">
-      <h2 className="control-col-title" id="watch-title"><Icon name="check" size={14} />Monitored · on track<span className="num">{overview ? monitored.length : ""}</span></h2>
+      <h2 className="control-col-title" id="watch-title">On track<span className="num">{overview ? monitored.length : ""}</span><small>Monitored, nothing to do</small></h2>
       {loading && <ul className="watch-list" aria-busy="true">{[0, 1, 2, 3].map((index) => <li className="skeleton watch-skeleton" key={index} />)}</ul>}
       {overview && monitored.length === 0 && <p className="lane-empty">{search ? `No monitored orders match “${search}”.` : "No orders are being monitored right now."}</p>}
       {lanes.map((lane) => <div className="watch-group" key={lane}>
