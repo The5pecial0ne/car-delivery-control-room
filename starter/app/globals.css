@@ -1316,140 +1316,24 @@ a.source:hover { text-decoration: underline; }
 .fold > summary:hover .fold-action { border-color: var(--ink); }
 .fold[open] > summary .fold-action { background: var(--canvas); }
 
-/* ══ Bahn theme: black, red and white ══════════════════════════════════════
-   One structural colour (near-black), one accent (Bahn red) and white for
-   text and anything selected. Greys only to separate surfaces. Status keeps
-   its words and icons; colour only backs them up:
-     problem / attention  red
-     confirmed / on track white, with "Confirmed" or "On track" and a check
-     agent work           muted grey
-     upcoming             dark grey
-   The tokens are redefined here, last, so every page and component picks
-   them up without touching its own rules. Button shapes stay as they are. */
+/* ══ Bahn touches ══════════════════════════════════════════════════════════
+   The light look stays. Three things change: Manrope for body text and the
+   interface, Poppins for headings, and in the sidebar the Bahn logo, red
+   icons, and black with white text for the page you are on. */
 :root {
-  color-scheme: dark;
-  --birch: #0a0a0a;          /* page */
-  --canvas: #141414;         /* panels, selected rows */
-  --tray: #1a1a1a;           /* hover, raised blocks */
-  --hair: #2b2b2b;           /* dividers */
-  --hair-soft: #202020;
-  --sand: #474747;           /* strong borders, quiet marks */
-  --ink: #f5f4f0;            /* primary text, selected fills */
-  --brown: #d2d0ca;          /* secondary text */
-  --muted: #a6a39c;
-  --subtle: #8b8882;
+  --font-body: "Manrope", "Poppins", Arial, Helvetica, sans-serif;
+  --font-display: "Poppins", Arial, Helvetica, sans-serif;
   --bahn-red: #ec0016;
-  --bahn-red-dark: #b8000f;
-  --red: var(--bahn-red);
-  --red-ink: #ff5a69;        /* red text on black, 5.6:1 */
-  --red-bg: #2a080c;
-  /* No second warm colour: anything that used orange is red now. */
-  --orange: var(--red); --orange-ink: var(--red-ink); --orange-text: var(--red-ink); --orange-bg: var(--red-bg);
-  /* Confirmed reads as white with its label, not as green. */
-  --green: #e9e7e1;
-  --green-ink: #e9e7e1;
-  --green-bg: #1c1c1c;
-  /* The agent is a calm grey, set apart by its labels and bot icon. */
-  --agent: #8e8b85;
-  --agent-ink: #c9c6bf;
-  --agent-bg: #151515;
-  --shadow-card: 0 0 0 1px var(--hair);
-  --shadow-card-hover: 0 0 0 1px var(--sand);
-  background: var(--birch);
 }
-::selection { background: var(--bahn-red); color: #fff; }
-:focus-visible { outline-color: var(--ink); }
+h1, h2, h3, h4, .page-title { font-family: var(--font-display); }
+button, input, textarea, select { font-family: var(--font-body); }
 
-/* Sidebar: black, the Bahn logo before the product name, red navigation. */
-.sidebar { background: #000; border-right-color: #1f1f1f; }
-.wordmark { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; color: #fff; }
+.wordmark { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 14px; }
 .wordmark-logo { display: block; flex: none; width: 52px; height: auto; aspect-ratio: 125.98 / 28.37; }
-.wordmark span { min-width: 0; }
-.nav-label { color: #8b8882; }
-.sidebar .nav-link { margin-bottom: 3px; background: var(--bahn-red); color: #fff; box-shadow: none; }
-.sidebar .nav-link .icon { color: #fff; }
-.sidebar .nav-link:hover { background: #000; color: #fff; box-shadow: inset 0 0 0 1px var(--bahn-red); }
-.sidebar .nav-link.active { background: #000; color: #fff; font-weight: 600; box-shadow: inset 0 0 0 1.5px #fff; }
-.sidebar .nav-link:hover .icon, .sidebar .nav-link.active .icon { color: #fff; }
-.sidebar .nav-link:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
-.sidebar-foot { color: #8b8882; }
-.reading-toggle { color: #a6a39c; }
-.reading-toggle:hover, .reading-toggle.on { color: #fff; }
-.reading-switch { background: #3a3a3a; }
-.reading-toggle.on .reading-switch { background: var(--bahn-red); }
+
+.sidebar .nav-link .icon { color: var(--bahn-red); }
+.sidebar .nav-link.active { background: var(--ink); color: #fff; box-shadow: none; }
+.sidebar .nav-link.active:hover { background: var(--ink); }
 @media (max-width: 900px) {
-  .sidebar .nav-link { margin-bottom: 0; }
-  .sidebar .nav-link.active { box-shadow: inset 0 0 0 1.5px #fff; }
+  .sidebar .nav-link.active { box-shadow: none; }
 }
-
-/* Buttons: same pills, Bahn colours. Primary is red, secondary is outlined, selected is white. */
-.btn { background: transparent; border-color: var(--sand); color: var(--ink); }
-.btn:hover:not(:disabled) { border-color: var(--ink); }
-.btn.primary { background: var(--bahn-red); border-color: var(--bahn-red); color: #fff; }
-.btn.primary:hover:not(:disabled) { background: var(--bahn-red-dark); border-color: var(--bahn-red-dark); }
-.btn.quiet { background: transparent; border-color: transparent; color: var(--muted); }
-.btn.quiet:hover:not(:disabled) { background: var(--tray); color: var(--ink); }
-/* Destructive is outlined red, so it never looks like the main action. */
-.btn.danger { background: transparent; border: 1.5px solid var(--bahn-red); color: var(--red-ink); }
-.btn.danger:hover:not(:disabled) { background: var(--bahn-red); border-color: var(--bahn-red); color: #fff; }
-.btn.quiet.danger { border: 1px solid transparent; color: var(--red-ink); }
-.btn.quiet.danger:hover:not(:disabled) { background: var(--red-bg); color: var(--red-ink); }
-.toggle { background: transparent; border-color: var(--sand); color: var(--brown); }
-.toggle[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #0a0a0a; }
-.priority-switch { background: #000; border-color: var(--sand); }
-.priority-switch button { color: var(--brown); }
-.priority-switch button.on, .priority-switch button.on:hover { background: var(--ink); color: #0a0a0a; }
-.hj-toggle, .link-button, .show-more, .fold-action, .mail-back { background: transparent; border-color: var(--sand); color: var(--ink); }
-.hj-toggle:hover, .link-button:hover, .show-more:hover, .mail-back:hover, .fold > summary:hover .fold-action { border-color: var(--bahn-red); }
-.fold[open] > summary .fold-action { background: var(--tray); }
-.demo-button { background: transparent; border-color: var(--sand); color: var(--ink); }
-
-/* Inputs and selects: dark fields, red focus. */
-input, textarea, select { background: #000; color: var(--ink); border-color: var(--sand); }
-input::placeholder, textarea::placeholder { color: #7d7a74; }
-.search { background: #000 !important; border-color: var(--sand); }
-.search:focus-within, textarea:focus, select:focus { border-color: var(--bahn-red); outline: none; box-shadow: 0 0 0 1px var(--bahn-red); }
-
-/* Surfaces that were glassy or soft become solid. */
-.cover-pill, .cover-info { background: rgba(0, 0, 0, 0.82); backdrop-filter: none; color: #fff; }
-.decision { box-shadow: 0 0 0 1px var(--hair); }
-.segmented button.on { box-shadow: 0 0 0 1px var(--sand); }
-.key-question-answer, .planb-agent, .planb-checks, .planb-more { border-top-color: var(--hair); }
-.planb-check { border-bottom-color: var(--hair-soft); }
-.hj-card, .donut-tip { background: #000; border-color: var(--sand); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6); }
-.hj-card::before { background: #000; border-color: var(--sand); }
-.skeleton { background: linear-gradient(90deg, var(--hair-soft), var(--tray), var(--hair-soft)); background-size: 200% 100%; }
-
-/* Queue rows: red bar for critical, a hatched red bar for the rest, white frame when selected. */
-.queue-card.active { background: var(--canvas); box-shadow: inset 0 0 0 1.5px var(--ink); }
-.case-countdown { background: var(--red-bg); }
-.best-option { background: var(--canvas); border-left-color: var(--bahn-red); }
-.planb { background: var(--agent-bg); border-left-color: var(--agent); }
-
-/* Timeline: red problems, white confirmed steps, grey agent work, dark grey future. */
-.hj-mark { box-shadow: 0 0 0 3px var(--birch); }
-.hj-done .hj-mark { background: var(--ink); color: #0a0a0a; }
-.hj-issue .hj-mark { background: var(--bahn-red); color: #fff; }
-.hj-decision .hj-mark { background: var(--birch); color: var(--red-ink); box-shadow: 0 0 0 3px var(--birch), inset 0 0 0 2px var(--bahn-red); }
-.hj-agent .hj-mark { background: #3a3a3a; color: var(--ink); }
-.hj-upcoming .hj-mark { background: var(--birch); color: var(--subtle); box-shadow: 0 0 0 3px var(--birch), inset 0 0 0 1.5px var(--sand); }
-.hj-point::after { background: #8b8882; }
-.hj-point.is-focus .hj-mark { box-shadow: 0 0 0 3px var(--birch), 0 0 0 5px var(--red-bg), 0 0 0 6px var(--bahn-red); }
-.hj-point.is-focus.hj-decision .hj-mark { box-shadow: inset 0 0 0 2px var(--bahn-red), 0 0 0 3px var(--birch), 0 0 0 5px var(--red-bg), 0 0 0 6px var(--bahn-red); }
-.hj-legend .hj-done .hj-dot { background: var(--ink); }
-.hj-legend .hj-issue .hj-dot { background: var(--bahn-red); }
-.hj-legend .hj-agent .hj-dot { background: #6a6a6a; }
-.hj-legend .hj-upcoming .hj-dot { background: var(--birch); box-shadow: inset 0 0 0 1.5px var(--sand); }
-.hj-more button { background: var(--birch); }
-
-/* Donut: gaps in the page colour, the selected segment outlined in white. */
-.donut { --donut-hatch: #5a5a5a; --donut-hatch-bg: #1e1e1e; }
-.donut-seg { stroke: var(--birch); }
-.donut-swatch { box-shadow: inset 0 0 0 1px #5a5a5a; }
-.donut-swatch.is-hatched { background: repeating-linear-gradient(45deg, #5a5a5a 0 2px, #1e1e1e 2px 4px); }
-.donut-legend input { accent-color: var(--bahn-red); }
-
-/* Chips and badges: dark fills, the label carries the meaning. */
-.chip { background: var(--tray); color: var(--brown); }
-.chip.tone-danger, .chip.tone-warn { background: var(--red-bg); color: var(--red-ink); }
-.chip.tone-ok { background: var(--green-bg); color: var(--ink); }

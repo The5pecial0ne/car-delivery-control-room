@@ -23,9 +23,9 @@ export function AppFrame({ children, section, snapshotAt, board = false }: { chi
   return <div className={`app${board ? " app-board" : ""}`}>
     <aside className="sidebar">
       <Link href="/" className="wordmark" aria-label="Bahn Control Room home">
-        {/* The supplied Bahn wordmark, in its light colourway for the black sidebar. */}
+        {/* The supplied Bahn wordmark, in its dark colourway, which matches the sidebar text. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="wordmark-logo" src="/brand/bahn-logo-light.svg" alt="Bahn" width={52} height={12} />
+        <img className="wordmark-logo" src="/brand/bahn-logo-dark.svg" alt="Bahn" width={52} height={12} />
         <span>Control Room</span>
       </Link>
       <nav className="sidebar-nav" aria-label="Main navigation">
