@@ -83,6 +83,8 @@ async function main(): Promise<void> {
 
   console.log(`ok: ${steps.length} steps on ${caseRow.id}`)
   for (const step of steps) console.log(`${String(step.seq).padStart(3)}  ${step.actor.padEnd(6)} ${step.kind.padEnd(8)} ${step.body}`)
+  // Leave the queue as we found it.
+  await deleteCase(caseRow.id)
   await closeDb()
 }
 
