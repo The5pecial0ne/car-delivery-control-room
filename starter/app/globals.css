@@ -31,6 +31,7 @@
   --font-mono: "Reddit Mono", "SF Mono", Menlo, Consolas, monospace;
   --radius: 8px;
   --radius-lg: 16px;
+  --sidebar-w: 228px;
   --content-w: 1040px;
   --gutter: 24px;
   --shadow-card: 0 0 0 1px var(--hair), 0 1px 2px rgba(66, 61, 51, 0.05);
@@ -86,13 +87,18 @@ ul, ol { padding: 0; list-style: none; }
 .ref-link:hover { border-bottom-color: var(--ink); }
 
 /* ── Shell ─────────────────────────────────────────────────────────────── */
+.app { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); min-height: 100dvh; }
 .app-board { height: 100dvh; overflow: hidden; }
+.sidebar { position: sticky; top: 0; height: 100dvh; display: flex; flex-direction: column; gap: 26px; padding: 20px 14px 18px; border-right: 1px solid var(--hair); background: var(--birch); }
 .wordmark { display: block; padding: 0 10px; font-family: var(--font-display); font-weight: 600; font-size: 15px; letter-spacing: -0.01em; text-decoration: none; color: var(--ink); white-space: nowrap; }
+.sidebar-nav { display: grid; gap: 20px; }
+.nav-label { margin: 0 10px 5px; font-size: 11.5px; color: var(--subtle); }
 .nav-link { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; font-size: 13.5px; font-weight: 500; color: var(--brown); text-decoration: none; }
 .nav-link .icon { color: var(--subtle); }
 .nav-link:hover { background: var(--canvas); color: var(--ink); }
 .nav-link.active { background: var(--hair-soft); color: var(--ink); }
 .nav-link.active .icon { color: var(--ink); }
+.sidebar-foot { margin-top: auto; padding: 0 10px; font-size: 12px; line-height: 1.5; color: var(--subtle); }
 .main { min-width: 0; display: flex; flex-direction: column; }
 .app-board .main { height: 100dvh; min-height: 0; }
 
@@ -400,9 +406,13 @@ details.more > :not(summary) { margin-top: 8px; }
 
 @media (max-width: 900px) {
   :root { --gutter: 16px; }
+  .app { display: block; }
   .app-board { height: auto; overflow: visible; }
+  .sidebar { position: sticky; top: 0; z-index: 3; height: auto; flex-direction: row; align-items: center; gap: 14px; padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--hair); overflow-x: auto; scrollbar-width: none; }
   .wordmark { padding: 0 4px; }
+  .sidebar-nav { display: flex; gap: 2px; }
   .nav-group { display: flex; gap: 2px; }
+  .nav-label, .sidebar-foot { display: none; }
   .nav-link { padding: 6px 9px; white-space: nowrap; }
   .nav-link .icon { display: none; }
   .app-board .main { height: calc(100dvh - 49px); min-height: 0; }
@@ -443,7 +453,7 @@ details.more > :not(summary) { margin-top: 8px; }
 }
 
 /* ── Inbox as a mailbox ─────────────────────────────────────────────────── */
-.mailbox { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); flex: 1; min-height: 0; height: calc(100dvh - var(--topbar-h)); }
+.mailbox { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); flex: 1; min-height: 0; height: 100dvh; }
 .mail-list { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--hair); background: var(--birch); }
 .mail-list-head { padding: 22px 20px 12px; }
 .mail-list-head h1 { font-family: var(--font-display); font-weight: 600; font-size: 22px; letter-spacing: -0.02em; line-height: 1.1; }
@@ -479,8 +489,8 @@ details.more > :not(summary) { margin-top: 8px; }
 }
 
 /* ── Desk: the cases that need a person ────────────────────────────────── */
-.desk { display: grid; grid-template-columns: 380px minmax(0, 1fr); min-height: calc(100dvh - var(--topbar-h)); }
-.desk-list { position: sticky; top: var(--topbar-h); height: calc(100dvh - var(--topbar-h)); overflow-y: auto; border-right: 1px solid var(--hair); background: var(--canvas); padding-bottom: 20px; scrollbar-width: thin; scrollbar-color: var(--sand) transparent; }
+.desk { display: grid; grid-template-columns: 380px minmax(0, 1fr); min-height: 100dvh; }
+.desk-list { position: sticky; top: 0; height: 100dvh; overflow-y: auto; border-right: 1px solid var(--hair); background: var(--canvas); padding-bottom: 20px; scrollbar-width: thin; scrollbar-color: var(--sand) transparent; }
 .desk-list-head { padding: 20px 18px 14px; }
 .desk-list-head h1 { font-family: var(--font-display); font-weight: 600; font-size: 24px; letter-spacing: -0.02em; line-height: 1.1; }
 .desk-list-head p { margin-top: 5px; font-size: 13px; color: var(--muted); }
@@ -702,6 +712,7 @@ a.source:hover { text-decoration: underline; }
 .site-pattern-head a { color: inherit; }
 .site-pattern-advice { margin-top: 4px; }
 .site-pattern-orders { margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+.reading-toggle + .sidebar-foot { margin-top: -14px; }
 
 /* Two stages on a case: investigation, then recovery. */
 .case-sec-title small { font-weight: 400; color: var(--subtle); }
@@ -787,6 +798,7 @@ a.source:hover { text-decoration: underline; }
   --teal: var(--agent);
   --teal-ink: var(--agent-ink);
   --teal-bg: var(--agent-bg);
+  --sidebar-w: 212px;
 }
 .control {
   /* Inside the control room there is one alarm colour. "At risk" differs from "critical" by weight, not hue. */
@@ -794,12 +806,13 @@ a.source:hover { text-decoration: underline; }
 }
 
 /* Navigation: quieter, narrower, no filled pills. */
+.sidebar { gap: 22px; padding: 18px 12px; background: var(--canvas); }
 .nav-link { border-radius: 4px; font-weight: 500; }
 .nav-link.active { background: transparent; color: var(--ink); box-shadow: inset 2px 0 0 var(--ink); }
 .nav-link:hover { background: var(--hair-soft); }
 
 /* The page: header bar, then three columns that each scroll on their own. */
-.control { display: grid; grid-template-columns: 320px minmax(0, 1fr) 296px; grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: "head head head" "error error error" "queue read watch"; height: calc(100dvh - var(--topbar-h)); min-height: 0; background: var(--birch); }
+.control { display: grid; grid-template-columns: 320px minmax(0, 1fr) 296px; grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: "head head head" "error error error" "queue read watch"; height: 100dvh; min-height: 0; background: var(--birch); }
 .control-head { grid-area: head; display: flex; align-items: center; gap: 22px; height: 56px; padding: 0 24px; border-bottom: 1px solid var(--hair); }
 .control-head h1 { font-family: var(--font-display); font-size: 15px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
 .control-sum { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--muted); }
@@ -1262,47 +1275,6 @@ a.source:hover { text-decoration: underline; }
   .order-row { grid-template-columns: minmax(0, 1fr) 14px; }
   .order-row-meta { grid-column: 1; grid-row: 2; justify-content: flex-start; }
   .order-row > .icon { grid-column: 2; grid-row: 1 / span 2; }
-}
-
-/* ══ Shell: navigation across the top ═════════════════════════════════════
-   One slim bar: wordmark, the two groups of sections as pills, and the
-   snapshot and reading switch at the far end. The page gets the full width. */
-:root { --topbar-h: 52px; }
-.app { display: flex; flex-direction: column; min-height: 100dvh; }
-.app-board { height: 100dvh; overflow: hidden; }
-.main { flex: 1; min-height: 0; }
-.app-board .main { height: calc(100dvh - var(--topbar-h)); }
-.topbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 28px; height: var(--topbar-h); padding: 0 20px 0 24px; border-bottom: 1px solid var(--hair); background: var(--canvas); }
-.topbar .wordmark { flex: none; font-size: 15px; }
-.topbar-nav { display: flex; align-items: center; gap: 6px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-.topbar-nav::-webkit-scrollbar { display: none; }
-.topbar-nav .nav-group { display: flex; gap: 2px; }
-/* A hairline between "Work" and "People and places", where the sidebar had its labels. */
-.topbar-nav .nav-group + .nav-group { margin-left: 8px; padding-left: 14px; border-left: 1px solid var(--hair); }
-.topbar .nav-link { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 14px; border-radius: 999px; font-size: 13px; font-weight: 500; color: var(--brown); white-space: nowrap; box-shadow: none; }
-.topbar .nav-link .icon { display: inline-block; color: var(--subtle); }
-.topbar .nav-link:hover { background: var(--hair-soft); color: var(--ink); }
-.topbar .nav-link.active { background: var(--ink); color: var(--birch); box-shadow: none; }
-.topbar .nav-link.active .icon { color: var(--birch); }
-.topbar .nav-link:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.topbar-end { display: flex; align-items: center; gap: 16px; margin-left: auto; flex: none; }
-.topbar-snapshot { font-size: 12px; color: var(--subtle); white-space: nowrap; }
-.topbar .reading-toggle { margin: 0; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
-.topbar .reading-toggle:hover { background: var(--hair-soft); }
-@media (max-width: 1100px) {
-  .topbar-snapshot { display: none; }
-  .topbar { gap: 18px; }
-}
-@media (max-width: 900px) {
-  :root { --topbar-h: 50px; }
-  .app-board { height: auto; overflow: visible; }
-  .topbar { gap: 12px; padding: 0 0 0 14px; }
-  .topbar .wordmark { font-size: 14px; }
-  .topbar-nav { flex: 1; padding-right: 12px; mask-image: linear-gradient(90deg, #000 calc(100% - 20px), transparent); }
-  .topbar .nav-link { height: 30px; padding: 0 12px; }
-  .topbar .nav-link .icon { display: none; }
-  .topbar-end { margin-left: 0; padding-right: 12px; }
-  .topbar .reading-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 
 /* ══ Buttons are pills ════════════════════════════════════════════════════

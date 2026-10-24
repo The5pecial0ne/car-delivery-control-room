@@ -22,6 +22,6 @@ export function ReadingModeToggle() {
     try { localStorage.setItem(KEY, next ? "easy" : "normal") } catch { /* private window */ }
   }
   return <button type="button" className={`reading-toggle${easy ? " on" : ""}`} role="switch" aria-checked={easy} onClick={toggle}>
-    <span className="reading-switch" aria-hidden="true" /><span className="reading-label">Easy reading</span>
+    <span className="reading-switch" aria-hidden="true" />Easy reading
   </button>
 }

@@ -115,7 +115,7 @@ export default function ControlRoom() {
 
   return <AppFrame section="desk" snapshotAt={snapshotAt}><main className={`control${showList ? "" : " reading"}`}>
     <header className="control-head">
-      <h1>Control room</h1>
+      <h1 className="sr-only">Control room</h1>
       <p className="control-sum">{overview
         ? <><span className="sum-alert"><b className="num">{attention.length}</b> need attention</span>{waiting ? <span><b className="num">{waiting}</b> waiting for your decision</span> : null}<span><b className="num">{monitored.length}</b> on track or done</span>{search ? <span>matching “{search}”</span> : null}</>
         : "Loading the snapshot"}</p>
