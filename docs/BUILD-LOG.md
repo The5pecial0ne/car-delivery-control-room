@@ -20,3 +20,11 @@ Notes on how we built this with coding agents, kept as we go so the demo video c
 - Three demo scenarios in `lib/agent/scenarios.ts`, picked to show both halves of the job: two cases that need a person (a warning light on a Bentley, a sold-out ferry) and one the agent should close by itself (a ferry queue that starts moving).
 - Caught while testing: the agent would have used the wall clock as "now", but the data is a snapshot from 21 October. The case now starts with the snapshot time.
 - Caught while reading the data: the simulated driver only heard `driver_chat` messages, but some drivers write in `support_chat` or email. It now hears every public message to or from the driver.
+
+**Step 3: the "Needs you" desk.**
+- The home page is now a desk, not the board. Cases are grouped by who has the ball: waiting for you, agent is on it, handled without you. The old board of lanes moved to "All orders".
+- Each case reads top to bottom the way a person decides: the headline, what happened, the agent's suggestion with Approve, Do something else and Reject, then what it found with a source on every fact, what is still unknown, and the full story underneath.
+- Sources you can follow: a fact the driver told the agent links to that exact message in the story below. Made-up quotes are marked "Quote (simulated)" so nobody mistakes them for real records.
+- The customer message is a draft the person edits and sends on approval. The page says plainly that the agent never sends it.
+- Caught in review: a person could write to the agent while it was still mid-run, and the running loop would then overwrite the conversation and lose that message. The message box is now locked while the agent works, and the server refuses with a clear reason.
+- We tried the case headline in the urgency colour first. A full orange sentence shouted, so the colour now lives in the small chips and the headline stays black.
