@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   description: "A fictional operations dataset and a simple read-only starting point.",
 }
 
-export const viewport: Viewport = { themeColor: "#fffef7", width: "device-width", initialScale: 1 }
+export const viewport: Viewport = { themeColor: "#0a0a0a", width: "device-width", initialScale: 1 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
