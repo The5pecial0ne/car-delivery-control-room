@@ -1,25 +1,58 @@
-# Car Delivery Control Room: our entry
+# Bahn Continuity: a control room for getting every car delivered
 
-We built the **"Needs you" desk** and an agent that works each case in **two stages**. It handles breakdowns, sold-out or missed ferries, delays, and pickups where the car is not where it should be.
+Our entry for Bahn's Car Delivery Control Room challenge (Prompt Operations Hackathon, 24 to 25 October 2026).
+
+Most cars on the move need nobody. The control room shows a person only the orders that do, with just enough to decide. One agent, working on the road (breakdowns, sold-out or missed ferries, delays, a car that is not at the pickup), does the legwork first in two stages, and a person makes the call.
+
+**Demo video:** _link to be added_ · **How we built it:** [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md) · **Demo walkthrough:** [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md)
+
+## What it does
+
+**The desk.** Only orders with a real problem reach Needs attention: 18 of 100 in the snapshot, with the recorded cases loaded. Each row says how serious it is, how much time is left and who has the next move. Every other order sits in On track and says what was checked ("no open alerts · driver on the road · app ETA inside the promise"), or who is following it up.
+
+**The agent, in two stages.**
 
 1. **Investigate.** It reads the records and asks the driver or the pickup site. It sorts what it finds into confirmed, reported, planned and unknown, lists where sources disagree, names the one question that unlocks the case, and lays out the delivery as planned against what is really happening.
-2. **Plan the recovery.** It scores options by arrival, cost and certainty, prepares a plan B, and sets deadlines that count down. The operator ranks the options by speed, cost or certainty, and approves one. Every fact has a source.
+2. **Plan the recovery.** It scores options by arrival, cost and certainty, prepares a Plan B and sets deadlines that count down. The case leads with the agent's own pick; pressing Speed, Cost or Certainty re-ranks every option and explains the trade-off. A person approves, edits or rejects.
 
-- What a person sees: cases grouped by who has the ball, a suggestion with Approve, Do something else and Reject, the facts with sources, what is still unknown, and the full story of what the agent did.
-- What the agent may do: read anything and message the driver. Everything that changes the world is a proposal, listed with its own switch in `starter/lib/agent/policy.ts`. One small action, withdrawing an unconfirmed travel change, is switched to automatic. The agent has no tool for contacting customers, so it can only draft messages for a person to send.
-- Checks in code, not only in the prompt: a hand-over is refused if it cites a source the agent never saw, has no facts, or puts ids in the headline.
+**Built to be trusted.**
+
+- Every fact says who said it and when ("Driver said, 09:02", "Customer wrote, 21 Oct 08:40").
+- The agent may read anything and message the driver or the pickup site. Everything that changes the world is a proposal, listed with its own switch in `starter/lib/agent/policy.ts`. One small action, withdrawing an unconfirmed travel change, is switched to automatic. The agent has no tool for contacting customers, so it can only draft messages for a person to send. The desk's "Who does what" fold is built from the same file.
+- Checks live in code, not only in the prompt: a hand-over is refused if it cites a source the agent never saw, has no facts, lists no deadlines on a case that cannot wait, or puts ids in the headline.
 - The driver and the pickup desk are played by a second, smaller model with a private scenario, so the agent has to ask.
-- Site patterns flag places where the same trouble keeps coming back. Easy reading mode switches the app to OpenDyslexic.
 
-How we built it: [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md). Demo walkthrough: [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md).
+**Also:** site patterns flag places where the same trouble keeps coming back, and Easy reading switches the whole app to OpenDyslexic.
 
-- Only orders with a real problem reach the desk (18 of 100 in the snapshot, with the recorded cases loaded). Every other order says what was checked ("no open alerts · driver on the road · app ETA inside the promise"), or who is following it up.
+## Run it
 
-**Run it:** follow "Run the starter" below and open http://localhost:3000.
+You need Node.js 24 or newer and Docker.
 
-- **No model key needed to see the agent's work.** `npm run db:seed` loads four recorded runs of the demo cases (`starter/demo/recorded-cases.json`), with every step of their traces.
-- **To run the agent live,** put an OpenRouter key in `starter/.env` (`OPENROUTER_API_KEY=`), then run `npm run agent:demo` in `starter/`. You can also run one case from the terminal with `npm run agent -- ord-00322`, or press "Hand to the agent" on any order that needs attention.
-- **Checks:** `npm run test` (the desk's rules, no database needed), `npm run agent:test` (the agent's plumbing with a scripted model, no credit spent), `npm run smoke` (data and pages agree).
+```sh
+cd starter
+cp .env.example .env
+npm ci
+docker compose up -d --wait
+npm run db:push
+npm run db:seed
+npm run attachments:seed
+npm run dev
+```
+
+Then open http://localhost:3000. If port 5438 or 9009 is already in use, change it in `starter/compose.yaml` and in the matching line of `starter/.env`.
+
+- **No model key needed to see the agent's work.** `npm run db:seed` loads four recorded runs of the demo cases (`starter/demo/recorded-cases.json`), with every step of their traces, and restarts their countdowns.
+- **To run the agent live,** put an OpenRouter key in `starter/.env` (`OPENROUTER_API_KEY=`) and run `npm run agent:demo` in `starter/`. You can also run one case from the terminal with `npm run agent -- ord-00322`, or press "Hand to the agent" on any order that needs attention. `npm run demo:save` records a new set of runs.
+- **Checks:** `npm run test` (the desk's rules, no database needed), `npm run agent:test` (the agent's plumbing with a scripted model, no credit spent), `npm run smoke` (data and pages agree, with the app running).
+
+## Where things are
+
+- `starter/app/`: the pages. The home page is the control room; `components/case-view.tsx`, `investigation.tsx` and `recovery.tsx` are the case.
+- `starter/lib/agent/`: the agent. `loop.ts` runs it, `tools.ts` holds its tools and the hand-over checks, `prompt.ts` its instructions, `policy.ts` what it may do alone, `plan-b.ts` the free Plan B lookups, `priority.ts` the speed, cost and certainty ranking.
+- `starter/lib/present/`: the reading layer, including `queue.ts` (which orders need a person) and `timeline.ts`.
+- `docs/`: the build log and the demo script.
+
+Everything below this line is Bahn's original README for the challenge.
 
 ---
 

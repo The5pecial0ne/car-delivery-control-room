@@ -136,3 +136,5 @@ Where it ended up, on the same three cases: the Bentley case hands over "call th
 - *"Who does what."* The desk has a "Who does what" fold, built from the agent's own permissions in `policy.ts`: what it does alone, what waits for a yes, and what it never does. Switching an action to automatic moves it in the list by itself.
 - *What we threw away:* we tightened the prompt so the agent always asks a driver outright whether they are safe, and re-ran the Bentley. Reading the run showed the records already held the driver's own "I am safe at a service-area car park", and the agent had rightly not asked again. We reverted the change and deleted the run.
 
+
+**Step 15: the video, made the same way.** We asked one more session to check the repo for leaked keys (none, in the files or the history), tidy the README and make the video. It wrote the voiceover from this log, had it spoken by `gpt-audio` through OpenRouter, ran the app headless from a fresh seed, and drove it with Playwright, timing every click to the narration. `docs/DEMO-SCRIPT.md` is now the video's script, shot for shot.
