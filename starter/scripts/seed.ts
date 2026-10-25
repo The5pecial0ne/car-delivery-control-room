@@ -10,7 +10,6 @@ import * as schema from "../lib/schema"
 
 type SourceRow = Record<string, unknown> & { id: string; order_id?: string }
 
-// The packet ships its records in ../dataset/data. Set DATASET_DIR to seed another folder with the same files.
 const dataset = process.env.DATASET_DIR ?? join(process.cwd(), "..", "dataset", "data")
 const url = process.env.DATABASE_URL
 if (!url) throw new Error("Set DATABASE_URL before seeding. See .env.example.")
@@ -71,7 +70,6 @@ async function seed(): Promise<void> {
   const rows = (name: string): SourceRow[] => source.get(name) ?? []
   const planOrder = new Map(rows("transport_plans").map((plan) => [plan.id, value(plan, "order_id")]))
 
-  // A failed insert rolls back the whole replacement, so the app never serves a partial seed.
   await db.transaction(async (tx) => {
     await tx.execute(sql`TRUNCATE agent_steps, agent_cases, dataset_metadata, customers, sites, addresses, vehicles, drivers, orders, order_items, conversations, messages, alerts, operational_events, related_records`)
     await tx.insert(schema.datasetMetadata).values({

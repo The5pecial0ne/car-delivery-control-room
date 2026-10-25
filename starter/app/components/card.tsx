@@ -11,7 +11,6 @@ export const MARK_ICON: Record<string, string> = {
   proposal: "proposal", claim: "alert", custody: "key", check: "note", inbox: "message",
 }
 
-/** One order on a board or in a list: car, reference, customer, route, the decisive date and the work tray. */
 export function Card({ card, role }: { card: BoardCard; role?: string | null }) {
   const marks = uniqueMarks(card)
   const date = card.decisive

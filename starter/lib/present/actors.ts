@@ -8,7 +8,6 @@ export type DirectoryInput = {
   customers: { id: string; name: string }[]
   sites: { id: string; name: string }[]
   endpointDetails: Row[]
-  /** author_id to author_name_snapshot, taken from messages. */
   snapshots?: Map<string, string>
 }
 
@@ -16,8 +15,6 @@ function text(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null
 }
 
-/** Resolves the dataset's actor identifiers to names and roles. Unknown identifiers
- * are humanised, never hidden, so a reader can still follow the source. */
 export class Directory {
   private drivers = new Map<string, DirectoryInput["drivers"][number]>()
   private operators = new Map<string, string>()
@@ -39,7 +36,6 @@ export class Directory {
     this.snapshots = input.snapshots ?? new Map()
   }
 
-  /** Title of an operator role such as "Support desk"; falls back to a readable form of the id. */
   title(id: unknown): string | null {
     const key = text(id)
     if (!key) return null

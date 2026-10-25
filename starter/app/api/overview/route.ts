@@ -9,7 +9,6 @@ export const runtime = "nodejs"
 
 const TONE_RANK: Record<Tone, number> = { danger: 0, warn: 1, accent: 2, neutral: 3, ok: 4 }
 
-/** Cards that need a person first, then by the date that decides the next step. */
 function laneSort(lane: string) {
   return (a: BoardCard, b: BoardCard): number => {
     const attention = TONE_RANK[a.attentionTone] - TONE_RANK[b.attentionTone]

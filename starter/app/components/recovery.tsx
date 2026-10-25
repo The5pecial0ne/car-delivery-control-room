@@ -1,11 +1,5 @@
 "use client"
 
-// Recovery, worked out before anyone asks: what matters most today (speed,
-// cost or certainty), the options ranked and explained by it, and the Plan B
-// the agent's lookup tools prepared. Nothing here books or sends anything.
-// Choosing an option either answers the agent's hand-over or hands the order
-// to the agent with that priority.
-
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { cityOfZone, clockIn } from "@/lib/agent/clock"
 import { actionLabel, CERTAINTY_LABEL, type Certainty, type Decision, type Option } from "@/lib/agent/labels"
@@ -17,18 +11,17 @@ import { Icon } from "./icons"
 const STORE = "desk-priority-v2"
 const PRIORITY_EVENT = "desk-priority"
 
-/** The operator's priority, remembered in this browser and shared by every panel on the page. */
 export function usePriority(): [Priority, (value: Priority) => void] {
   const [priority, setPriority] = useState<Priority>("speed")
   useEffect(() => {
-    try { const saved = localStorage.getItem(STORE); if (saved === "speed" || saved === "cost" || saved === "certainty") setPriority(saved) } catch { /* private window */ }
+    try { const saved = localStorage.getItem(STORE); if (saved === "speed" || saved === "cost" || saved === "certainty") setPriority(saved) } catch {}
     const follow = (event: Event) => setPriority((event as CustomEvent<Priority>).detail)
     window.addEventListener(PRIORITY_EVENT, follow)
     return () => window.removeEventListener(PRIORITY_EVENT, follow)
   }, [])
   const choose = useCallback((value: Priority) => {
     setPriority(value)
-    try { localStorage.setItem(STORE, value) } catch { /* private window */ }
+    try { localStorage.setItem(STORE, value) } catch {}
     window.dispatchEvent(new CustomEvent(PRIORITY_EVENT, { detail: value }))
   }, [])
   return [priority, choose]
@@ -36,7 +29,6 @@ export function usePriority(): [Priority, (value: Priority) => void] {
 
 export type PlanState = { state: "loading" | "ready" | "insufficient" | "error"; plan: RankedPlanB | null; error?: string }
 
-/** Plan B for an order, prepared when the order is opened and re-ranked when the priority changes. */
 export function usePlanB(orderId: string, priority: Priority, onPlan?: (plan: RankedPlanB | null) => void): PlanState & { refresh: () => void } {
   const [result, setResult] = useState<PlanState>({ state: "loading", plan: null })
   const [round, setRound] = useState(0)
@@ -55,12 +47,10 @@ export function usePlanB(orderId: string, priority: Priority, onPlan?: (plan: Ra
         onPlan?.(null)
       })
     return () => controller.abort()
-    // onPlan is a notification, not an input, so it is left out on purpose.
   }, [orderId, priority, round])
   return { ...result, refresh: () => setRound((value) => value + 1) }
 }
 
-/** With no priority chosen yet (null), nothing is pressed and the agent's own pick leads. */
 export function PrioritySwitch({ priority, onChange }: { priority: Priority | null; onChange: (value: Priority) => void }) {
   const current = PRIORITIES.find((item) => item.key === priority)
   return <div className="priority">
@@ -96,7 +86,6 @@ export type Row = {
   option?: Option
 }
 
-/** Delivery, cost, certainty and approval for one option, in one compact row. */
 export function OptionImpact({ row }: { row: Row }) {
   return <dl className="option-impact">
     <div><dt>Delivery</dt><dd>{row.arrives ?? "No new arrival time"}</dd></div>
@@ -106,11 +95,9 @@ export function OptionImpact({ row }: { row: Row }) {
   </dl>
 }
 
-/** Delivery, cost, certainty and approval in one line, for the recommendation card. */
 export function ImpactLine({ row }: { row: Row }) {
   const cost = row.cost == null ? "No cost estimate" : row.cost === "No extra cost" ? "No extra cost" : `Estimated extra cost: ${row.cost.replace(/^About /, "")}`
   const parts = [
-    // The agent gives a bare time ("Wed 17:00 Helsinki time"); prepared options already say "Arrives about…".
     row.arrives ? /^(arrives|delivers|delivery|no |on |late|stays)/i.test(row.arrives) ? row.arrives : `Delivery ${row.arrives}` : "No new arrival time",
     cost,
     row.certainty ? CERTAINTY_LABEL[row.certainty] : null,
@@ -119,17 +106,14 @@ export function ImpactLine({ row }: { row: Row }) {
   return <p className="impact-line">{parts.map((part, index) => <span key={index}>{part}</span>)}</p>
 }
 
-/** First sentence of a longer text, so a card can lead with the concrete step. */
 export const firstSentence = (text: string, length = 170) => {
   const sentence = text.split(/(?<=[.!?])\s/)[0] ?? text
   if (sentence.length <= length) return sentence
-  // Cut at a word, never through one.
   const cut = sentence.slice(0, length - 1)
   const space = cut.lastIndexOf(" ")
   return `${(space > length / 2 ? cut.slice(0, space) : cut).replace(/[\s,;:·–-]+$/, "")}…`
 }
 
-/** The recommended option for the chosen priority: one concrete step, one impact line, the actions. */
 export function BestOption({ row, children, note }: { row: Row; children: React.ReactNode; note?: React.ReactNode }) {
   return <div className="best-option">
     <p className="best-kicker"><Icon name="flag" size={13} />Recommended action{row.tag ? <span> · {row.tag}</span> : null}</p>
@@ -140,11 +124,6 @@ export function BestOption({ row, children, note }: { row: Row; children: React.
   </div>
 }
 
-/**
- * Every option, ranked for the priority, folded under one line that counts the
- * others. The recommended one is listed first with its full reasoning, so
- * nothing the card leaves out is more than a click away.
- */
 export function CompareOptions({ rows, priority, action, extra }: {
   rows: Row[]; priority: Priority | null; action: (row: Row) => React.ReactNode; extra?: (row: Row) => React.ReactNode
 }) {
@@ -172,15 +151,12 @@ export function CompareOptions({ rows, priority, action, extra }: {
   </details>
 }
 
-/** The agent's own hand-over options (its pick, the alternatives and its Plan B), ranked by the operator's priority. */
 export function agentRows(decision: Decision, priority: Priority, zone: string): Row[] {
   const options: { option: Option; tag: string }[] = []
   if (decision.recommendation) options.push({ option: decision.recommendation, tag: "Agent's pick" })
   decision.alternatives?.forEach((option, index) => options.push({ option, tag: `Alternative ${index + 1}` }))
   if (decision.plan_b) options.push({ option: decision.plan_b, tag: "Plan B" })
   const all = options.map((item) => item.option)
-  // "Something else" says nothing, so an option without a known action is named by its own first sentence.
-  // The first option with an action keeps its short name; later ones with the same action are told apart by their summary.
   const titleOf = (option: Option) => option.action && option.action !== "other" && all.find((item) => item.action === option.action) === option
     ? actionLabel(option.action) : (option.summary?.split(/(?<=[.!?])\s/)[0] ?? actionLabel(option.action))
   return rankOptions(options, priority).map(({ option, tag }, rank) => ({
@@ -193,7 +169,6 @@ export function agentRows(decision: Decision, priority: Priority, zone: string):
   }))
 }
 
-/** Options from the prepared Plan B, for an order the agent has no hand-over on yet. */
 export function PreparedOptions({ plan, priority, busy, onHandOver }: {
   plan: RankedPlanB; priority: Priority; busy: boolean | string; onHandOver: ((title: string) => void) | null
 }) {
@@ -218,7 +193,6 @@ export function PreparedOptions({ plan, priority, busy, onHandOver }: {
 const CHECK_ICON: Record<string, string> = { ferry: "ferry", driver: "driver", hotel: "hotel", promise: "flag", next: "check" }
 const CHECK_STATE: Record<string, string> = { found: "Found", none: "Nothing found", not_needed: "Not needed", unknown: "Unknown" }
 
-/** Plan B in one line, with the agent's own Plan B and everything its lookup tools checked one click away. */
 export function PlanBPanel({ state, onRefresh, agentPlan, onSwitch, busy, zone }: {
   state: PlanState; onRefresh: () => void; agentPlan?: Decision["plan_b"]; onSwitch?: () => void; busy?: boolean; zone: string
 }) {
@@ -231,7 +205,6 @@ export function PlanBPanel({ state, onRefresh, agentPlan, onSwitch, busy, zone }
   const line = state.state === "loading" ? "Looking up later sailings, backup drivers, hotels and the delivery promise."
     : state.state === "error" ? `${state.error}. Try again, or open the full record.`
     : plan?.reason ?? (found.length ? `Found ${found.join(", ")}: ${alternatives} alternative${alternatives === 1 ? "" : "s"} to the current plan.` : "Nothing usable turned up.")
-  // The agent's own Plan B counts as ready even while the lookups run again.
   const ready = state.state === "ready" || !!agentPlan?.summary
   return <Disclosure id="plan-b" tone={ready ? "agent" : undefined} action="View Plan B"
     summary={<span className="planb-line" aria-busy={state.state === "loading"}>
@@ -267,7 +240,6 @@ export function PlanBPanel({ state, onRefresh, agentPlan, onSwitch, busy, zone }
   </Disclosure>
 }
 
-/** Starts an agent case on the order with the chosen option and priority, the same way a demo case starts. */
 export async function handOver(orderId: string, problem: string, option: string, priority: Priority): Promise<void> {
   const trigger = `Operations asked for a recovery plan. Open point: ${problem}. What matters most today: ${priority}. The option they lean towards: ${option}. Investigate first, then bring one decision.`
   const response = await fetch("/api/cases", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId, trigger }) })

@@ -1,8 +1,3 @@
-// What matters most today: speed, cost or certainty. The operator picks one,
-// and the recovery options are ranked and explained by it. The ranking is
-// plain code on the options' own numbers, so neither the agent nor the page
-// can quietly favour one. Safe to import from the browser.
-
 import { ACTIONS, isActionKind } from "./policy"
 import type { Certainty, Option } from "./labels"
 
@@ -18,7 +13,6 @@ export const isPriority = (value: unknown): value is Priority => value === "spee
 
 const SURE: Record<Certainty, number> = { confirmed: 0, quoted: 1, uncertain: 2 }
 
-// Lower is better. Missing numbers sort last, so an option without a price never "wins" on cost.
 function score(option: Option, priority: Priority): number[] {
   const time = option.arrives_at ? new Date(option.arrives_at).getTime() : Infinity
   const cost = option.cost_eur ?? Infinity
@@ -51,10 +45,6 @@ const CERTAIN_WHY: Record<Certainty, string> = {
   uncertain: "It depends on something nobody has confirmed yet.",
 }
 
-/**
- * Why an option sits where it does for this priority, in one sentence,
- * compared with the other options on the table.
- */
 export function whyFor(option: Option, all: Option[], priority: Priority, best: boolean): string {
   if (priority === "speed") {
     const times = all.map((item) => item.arrives_at ? new Date(item.arrives_at).getTime() : null).filter((value): value is number => value != null)

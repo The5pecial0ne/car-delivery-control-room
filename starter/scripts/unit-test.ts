@@ -1,9 +1,3 @@
-// Small checks on the rules the control room leans on: which orders reach a
-// person, which deadline a card leads with, and how long text is shortened.
-// No database or model needed.
-//
-//   npm run test
-
 import assert from "node:assert/strict"
 import { cardDeadline } from "@/app/components/queue-cards"
 import { nextDeadline } from "@/app/components/decision-extras"

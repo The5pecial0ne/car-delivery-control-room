@@ -1,14 +1,6 @@
-// The order's journey as one timeline: what has been confirmed, where things
-// went wrong, what the agent did about it, and what is still to come.
-//
-// Everything here is read from records that already exist: the order's event
-// log, its alerts, incidents and work items, its key dates and bookings, and
-// the agent's case steps. Nothing is guessed. Safe to import from the browser.
-
 import { fmtRange } from "./time"
 import type { HistoryEvent, RecordView } from "./types"
 
-/** Drives the colour and the icon. The label carries the meaning in words. */
 export type TimelineState = "done" | "issue" | "agent" | "decision" | "update" | "upcoming"
 
 export type TimelineEntry = {
@@ -18,9 +10,7 @@ export type TimelineEntry = {
   label: string
   title: string
   detail: string | null
-  /** Where the entry comes from, for example "operational_events" or "agent case". */
   source: string
-  /** True when the record carries no time of its own and the entry shows what is open at "now". */
   openNow?: boolean
 }
 
@@ -33,7 +23,6 @@ export const STATE_LABEL: Record<TimelineState, string> = {
   upcoming: "Upcoming",
 }
 
-/** The agent case, as much of it as the timeline needs. */
 export type AgentCaseLike = {
   status: "working" | "needs_person" | "resolved" | "failed"
   trigger: string
@@ -45,10 +34,6 @@ export type AgentCaseLike = {
 
 export type AgentStepLike = { id: string; actor: string; kind: string; body: string; data: Record<string, unknown>; createdAt: string }
 
-// Which logged events belong on the timeline, and how they read. Anything not
-// listed (status changes, cost claims, offer churn) stays in the full history.
-// Alerts, incidents and work items come from their own records below, so their
-// events are left out here to avoid showing them twice.
 const EVENTS: Record<string, { state: TimelineState; label?: string; title?: string }> = {
   "order.created": { state: "done" },
   "availability.confirmed": { state: "done" },
@@ -94,21 +79,18 @@ const EVENTS: Record<string, { state: TimelineState; label?: string; title?: str
 }
 
 const CLOSED = new Set(["RESOLVED", "DISMISSED", "CLOSED", "DONE", "CANCELLED"])
-// Attention items that already show up through their own records.
 const COVERED = new Set(["alert", "owned_alert", "incident", "work", "proposal"])
 const MAX_OPEN_ITEMS = 4
 
 const time = (at: string | null | undefined) => (at ? new Date(at).getTime() : NaN)
 const clip = (text: string, length = 120) => {
   if (text.length <= length) return text
-  // Cut at a word, never through one.
   const cut = text.slice(0, length - 1)
   const space = cut.lastIndexOf(" ")
   return `${(space > length / 2 ? cut.slice(0, space) : cut).replace(/[\s,;:·–-]+$/, "")}…`
 }
 const firstSentence = (text: string) => clip(text.split(/(?<=[.?!])\s/)[0] ?? text)
 
-/** Travel bookings made in the same minute read as one line: "Train, flight and hotel booked". */
 function mergeBookings(events: HistoryEvent[]): HistoryEvent[] {
   const result: HistoryEvent[] = []
   for (const event of events) {
@@ -154,7 +136,6 @@ function orderEntries(view: RecordView): TimelineEntry[] {
     entries.push({ id: item.id, at: item.openedAt, state: "issue", label: "Needs attention", title: item.kindLabel, detail: [item.summary, item.owner ? `Owner: ${item.owner}` : null].filter(Boolean).join(" · "), source: "work_items" })
     if (item.closedAt) entries.push({ id: `${item.id}-closed`, at: item.closedAt, state: "done", label: "Resolved", title: `${item.kindLabel} closed`, detail: item.outcome, source: "work_items" })
   }
-  // Proposals from the dataset's own agents (the journey monitor, the copilot).
   for (const proposal of view.proposals) {
     const state: TimelineState = proposal.status === "PENDING_REVIEW" ? "decision"
       : proposal.status === "EXECUTED" ? "agent"
@@ -165,7 +146,6 @@ function orderEntries(view: RecordView): TimelineEntry[] {
   return entries
 }
 
-/** Open attention items that have no record of their own on the timeline, shown where they stand now. */
 function openItems(view: RecordView, now: string): TimelineEntry[] {
   const open = view.attention.filter((item) => !COVERED.has(item.kind))
   const shown = open.slice(0, MAX_OPEN_ITEMS).map((item, index): TimelineEntry => ({
@@ -202,7 +182,6 @@ function upcomingEntries(view: RecordView, now: number, deadlines: { at: string;
   if (promise && !delivered) {
     const ends = promise.end ?? promise.start
     const missed = time(ends) < now
-    // Inside the window already: what is left is its end.
     const open = !missed && time(promise.start) <= now
     entries.push({
       id: "next-promise", at: missed || open ? ends : promise.start, state: missed ? "issue" : "upcoming", label: missed ? "Conflict" : "Upcoming",
@@ -217,7 +196,6 @@ function upcomingEntries(view: RecordView, now: number, deadlines: { at: string;
   return entries
 }
 
-/** The agent's case, read on the case clock: the snapshot time plus the real time since the case opened. */
 function agentEntries(agentCase: AgentCaseLike, steps: AgentStepLike[], snapshotAt: string | null): TimelineEntry[] {
   const opened = time(agentCase.createdAt)
   const onClock = (at: string) => (snapshotAt ? new Date(time(snapshotAt) + Math.max(0, time(at) - opened)).toISOString() : at)
@@ -257,13 +235,8 @@ function agentEntries(agentCase: AgentCaseLike, steps: AgentStepLike[], snapshot
 
 export type Timeline = { entries: TimelineEntry[]; now: string; nowIndex: number; issues: number }
 
-/** What the timeline needs to know about a prepared Plan B. */
 export type PlanBLike = { status: "ready" | "insufficient"; preparedAt: string; checks: { label: string; status: string }[]; options: { title: string }[] }
 
-/**
- * Plan B and the decision it leads to. It is placed on the same clock as the
- * rest: the case clock when a case is open, otherwise the snapshot time.
- */
 function planEntries(plan: PlanBLike, at: string, agentCase: AgentCaseLike | null | undefined): TimelineEntry[] {
   const found = plan.checks.filter((check) => check.status === "found").map((check) => check.label.toLowerCase())
   const entries: TimelineEntry[] = [{
@@ -271,23 +244,17 @@ function planEntries(plan: PlanBLike, at: string, agentCase: AgentCaseLike | nul
     title: plan.status === "ready" ? "Agent prepared Plan B" : "Agent looked for a Plan B and found no safe one",
     detail: found.length ? `Checked: ${found.join(", ")}. Nothing booked or sent.` : "Nothing booked or sent.", source: "plan-b",
   }]
-  // With a hand-over open, the decision is already on the timeline.
   if (plan.status === "ready" && plan.options[0] && agentCase?.status !== "needs_person" && agentCase?.status !== "working") {
     entries.push({ id: "plan-b-decide", at, state: "decision", label: "Decision needed", title: `Choose a recovery option: best now is "${plan.options[0].title.toLowerCase()}"`, detail: "Or hand it to the agent with your priority.", source: "plan-b" })
   }
   return entries
 }
 
-/**
- * The whole timeline, oldest first. `now` is the snapshot time, or the case
- * clock when an agent case is open, so countdowns and the "Now" line agree.
- */
 export function buildTimeline(view: RecordView, options: { agentCase?: AgentCaseLike | null; steps?: AgentStepLike[] | null; now?: number; planB?: PlanBLike | null } = {}): Timeline {
   const { agentCase, steps, planB } = options
   const nowMs = options.now ?? time(view.snapshotAt ?? new Date().toISOString())
   const now = new Date(nowMs).toISOString()
   const deadlines = agentCase?.status === "needs_person" ? agentCase.pendingDecision?.deadlines ?? [] : []
-  // A Plan B prepared during a case sits on the case clock; otherwise at the snapshot, which is "now" for the data.
   const planAt = planB ? agentCase && view.snapshotAt
     ? new Date(time(view.snapshotAt) + Math.max(0, time(planB.preparedAt) - time(agentCase.createdAt))).toISOString()
     : now : null

@@ -1,11 +1,5 @@
 "use client"
 
-// The order's journey as one line, left to right, at the top of every order.
-// Green is what is confirmed, red is where it went wrong or a decision waits,
-// indigo is what the agent did, and grey is still to come. Only the key points
-// are drawn; the rest fold into "+ N more". Any point opens a small card with
-// its time, what happened and where it comes from, by hover, focus or tap.
-
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { buildTimeline, type AgentCaseLike, type AgentStepLike, type PlanBLike, type TimelineEntry, type TimelineState } from "@/lib/present/timeline"
 import { fmtClock, fmtWeekday, zoneName } from "@/lib/present/time"
@@ -25,12 +19,10 @@ const SOURCE: Record<string, string> = {
   agent_proposals: "Proposal from another agent", "agent case": "Agent case", "plan-b": "Plan B lookups (simulated quotes)",
   time_windows: "Order dates", travel_reservations: "Travel booking", tracking: "Driver app tracking",
 }
-// The problems kept on the line when there are many. Decisions always stay.
 const MAX_ISSUES = 4
 
 const isProblem = (entry: TimelineEntry) => entry.state === "issue" || entry.state === "decision"
 
-/** Which points tell the story: where it started, the last good step, every problem, the agent's work, and what comes next. */
 function keyPoints(entries: TimelineEntry[], nowIndex: number): Set<number> {
   const keep = new Set<number>()
   if (!entries.length) return keep
@@ -66,7 +58,6 @@ export function OrderTimeline({ view, agentCase, steps, now, planB }: { view: Re
 
   const keep = useMemo(() => keyPoints(entries, nowIndex), [entries, nowIndex])
   const hiddenCount = entries.length - keep.size
-  // The point a person should look at first: the open decision, or else the latest problem.
   const focusId = [...entries].reverse().find((entry) => entry.state === "decision")?.id ?? [...entries].reverse().find((entry) => entry.state === "issue")?.id ?? null
 
   const slots = useMemo(() => {
@@ -85,7 +76,6 @@ export function OrderTimeline({ view, agentCase, steps, now, planB }: { view: Re
   const activeId = hovered ?? pinned
   const active = entries.find((entry) => entry.id === activeId) ?? null
 
-  // The card's little arrow points at the open node, wherever the line is scrolled.
   const placeArrow = useCallback(() => {
     const node = activeId ? nodes.current.get(activeId) : null
     if (!node || !track.current) return
@@ -93,7 +83,6 @@ export function OrderTimeline({ view, agentCase, steps, now, planB }: { view: Re
   }, [activeId])
   useLayoutEffect(placeArrow, [placeArrow, slots])
 
-  // Start with "now" in view on narrow screens, where the line scrolls.
   useEffect(() => {
     const line = track.current
     const marker = line?.querySelector<HTMLElement>(".hj-now")
@@ -165,10 +154,6 @@ function PointCard({ entry, zone, arrow, pinned, onClose }: { entry: TimelineEnt
 
 type CaseData = { case: AgentCaseLike & { id: string; orderId: string }; steps: AgentStepLike[] }
 
-/**
- * The newest agent case on an order and its steps, kept fresh. Used where the
- * case view is not already loading them, such as the full order page.
- */
 export function useOrderCase(orderId: string): CaseData | null {
   const [data, setData] = useState<CaseData | null>(null)
   useEffect(() => {
@@ -188,7 +173,6 @@ export function useOrderCase(orderId: string): CaseData | null {
           if (!stopped) setData(next)
         }
       } catch {
-        // The timeline still shows the order's own records without the case.
       }
       if (!stopped && caseId) timer = setTimeout(tick, status === "working" ? 2000 : 8000)
     }

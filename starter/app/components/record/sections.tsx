@@ -17,8 +17,6 @@ function capitalise(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
-/* ── Open points ─────────────────────────────────────────────────────── */
-
 export function AttentionPanel({ view }: { view: RecordView }) {
   const items = view.attention
   if (items.length === 0) return <div className="panel quiet" id="attention">
@@ -37,8 +35,6 @@ export function AttentionPanel({ view }: { view: RecordView }) {
     </li>)}</ol>
   </div>
 }
-
-/* ── Route strip ────────────────────────────────────────────────────────── */
 
 export function RouteStrip({ view }: { view: RecordView }) {
   const groups = view.journey.groups
@@ -97,8 +93,6 @@ function RouteLeg({ leg, view }: { leg: JourneyLeg; view: RecordView }) {
   </div>
 }
 
-/* ── Conversations ──────────────────────────────────────────────────────── */
-
 export function ConversationsSection({ view }: { view: RecordView }) {
   const { threads, notes } = view
   return <section className="sec" id="conversations">
@@ -153,8 +147,6 @@ export function ThreadMessages({ thread }: { thread: ThreadView }) {
   </div>)}</div>
 }
 
-/* ── Evidence ───────────────────────────────────────────────────────────── */
-
 export function EvidenceSection({ view }: { view: RecordView }) {
   const { proofs, documents, custody } = view
   const total = proofs.length + documents.length + custody.assets.length
@@ -169,8 +161,6 @@ export function EvidenceSection({ view }: { view: RecordView }) {
     <OrderFiles orderId={view.header.id} />
   </section>
 }
-
-/* ── Prior agent work ───────────────────────────────────────────────────── */
 
 export function DecisionsSection({ view }: { view: RecordView }) {
   const { proposals } = view
@@ -222,8 +212,6 @@ export function ProposalCards({ view }: { view: RecordView }) {
   </div>
 }
 
-/* ── Activity ───────────────────────────────────────────────────────────── */
-
 export function ActivitySection({ view }: { view: RecordView }) {
   const [all, setAll] = useState(false)
   const events = view.history.flatMap((day) => day.events)
@@ -238,8 +226,6 @@ export function ActivitySection({ view }: { view: RecordView }) {
     {events.length > 6 && <button type="button" className="show-more" onClick={() => setAll((value) => !value)}>{all ? "Show the latest only" : `Show all ${events.length} events`}</button>}
   </section>
 }
-
-/* ── Detailed route, for the records panel ──────────────────────────────── */
 
 export function RouteDetails({ view }: { view: RecordView }) {
   const { journey } = view

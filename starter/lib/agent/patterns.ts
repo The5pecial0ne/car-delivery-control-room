@@ -1,11 +1,3 @@
-// Site patterns: places where the same kind of trouble keeps coming back.
-//
-// One missing release letter is bad luck. The third order from the same
-// dealer that needs a manual check is a habit, and the next driver should
-// not have to find out at the gate. We read the records every order already
-// has (alerts, work items, documents, site visits, the site's own details)
-// and group the trouble by place and by theme. Plain counting, no model.
-
 import { eq, inArray } from "drizzle-orm"
 import { alerts, relatedRecords, sites } from "@/lib/schema"
 import { db } from "./conn"
@@ -39,7 +31,6 @@ export type SitePattern = {
   signals: Signal[]
 }
 
-// A pattern needs the trouble to repeat: two or more different orders at the same place.
 const MIN_ORDERS = 2
 
 export async function sitePatterns(filter?: { siteIds?: string[] }): Promise<SitePattern[]> {
@@ -62,7 +53,6 @@ export async function sitePatterns(filter?: { siteIds?: string[] }): Promise<Sit
     const siteId = String(endpoint.details.site_id)
     const boundary = String(endpoint.details.boundary ?? "PICKUP").toLowerCase()
     const orderId = endpoint.orderId
-    // Only trouble tied to this end of the trip counts for this place.
     for (const alert of alertRows.filter((row) => row.orderId === orderId)) {
       const theme = ALERT_THEMES[alert.signal]
       const isDelivery = alert.signal.startsWith("DELIVERY")
@@ -87,8 +77,6 @@ export async function sitePatterns(filter?: { siteIds?: string[] }): Promise<Sit
 
   const patterns: SitePattern[] = []
   for (const [siteId, list] of signals) {
-    // The site profile says the same thing on every order, so it can add to a
-    // pattern but never make one: only things that went wrong on orders count.
     const troubled = new Set(list.filter((signal) => !signal.source.startsWith("order_endpoint_details/")).map((signal) => signal.orderId))
     if (troubled.size < MIN_ORDERS) continue
     const site = siteRows.find((row) => row.id === siteId)
@@ -105,7 +93,6 @@ export async function sitePatterns(filter?: { siteIds?: string[] }): Promise<Sit
   return patterns.sort((a, b) => b.troubledOrders - a.troubledOrders)
 }
 
-/** Patterns at the pickup and delivery places of one order. */
 export async function patternsForOrder(orderId: string): Promise<SitePattern[]> {
   const endpoints = await db.select().from(relatedRecords).where(eq(relatedRecords.orderId, orderId))
   const siteIds = endpoints.filter((row) => row.collection === "order_endpoint_details" && typeof row.details.site_id === "string").map((row) => String(row.details.site_id))

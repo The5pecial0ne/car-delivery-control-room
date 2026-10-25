@@ -1,10 +1,3 @@
-// Sets the desk up for a demo: clears every agent case, then runs all the
-// demo scenarios side by side, so the desk fills up the way it would on a
-// real morning. Open http://localhost:3000 while it runs to watch it live.
-//
-//   npm run agent:demo            clear the desk and run every demo case
-//   npm run agent:demo -- --clear just clear the desk
-
 import "dotenv/config"
 import { closeDb } from "@/lib/agent/conn"
 import { openCase, runCase } from "@/lib/agent/loop"

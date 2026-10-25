@@ -1,6 +1,3 @@
-// Pure time and number formatting. The dataset is a frozen snapshot, so every
-// relative phrase is measured against the snapshot time, never the real clock.
-
 const LOCALE = "en-GB"
 
 export function zoneCity(zone: string | null | undefined): string | null {
@@ -29,28 +26,24 @@ function parts(date: Date, zone: string, options: Intl.DateTimeFormatOptions): s
   return new Intl.DateTimeFormat(LOCALE, { timeZone: zone, hourCycle: "h23", ...options }).format(date)
 }
 
-/** "21 Oct" */
 export function fmtDay(value: string | null | undefined, zone?: string | null): string {
   const date = parse(value)
   if (!date) return ""
   return parts(date, safeZone(zone), { day: "numeric", month: "short" })
 }
 
-/** "Fri 23 Oct" */
 export function fmtWeekday(value: string | null | undefined, zone?: string | null): string {
   const date = parse(value)
   if (!date) return ""
   return parts(date, safeZone(zone), { weekday: "short", day: "numeric", month: "short" })
 }
 
-/** "09:00" */
 export function fmtClock(value: string | null | undefined, zone?: string | null): string {
   const date = parse(value)
   if (!date) return ""
   return parts(date, safeZone(zone), { hour: "2-digit", minute: "2-digit" })
 }
 
-/** "21 Oct 08:14" in the given zone, with the zone's short name when it is not UTC: "23 Oct 09:00 EEST". */
 export function fmtDateTime(value: string | null | undefined, zone?: string | null, withZone = true): string {
   const date = parse(value)
   if (!date) return ""
@@ -61,7 +54,6 @@ export function fmtDateTime(value: string | null | undefined, zone?: string | nu
   return `${text} ${name}`
 }
 
-/** "21 October 2026, 08:14 UTC" for tooltips. */
 export function fmtLong(value: string | null | undefined): string {
   const date = parse(value)
   if (!date) return ""
@@ -73,7 +65,6 @@ export function zoneName(date: Date, zone: string): string {
   return formatted.find((part) => part.type === "timeZoneName")?.value ?? zone
 }
 
-/** "23 Oct 09:00–11:00 EEST" or "23 Oct 09:00 – 24 Oct 11:00 EEST". */
 export function fmtRange(start: string | null | undefined, end: string | null | undefined, zone?: string | null): string {
   const from = parse(start)
   const to = parse(end)
@@ -91,7 +82,6 @@ export function fmtRange(start: string | null | undefined, end: string | null | 
 
 export type Relative = { text: string; past: boolean; minutes: number }
 
-/** Distance between a time and the snapshot: "in 2 d", "4 h ago", "now". */
 export function relativeTo(value: string | null | undefined, snapshot: string | null | undefined): Relative | null {
   const date = parse(value)
   const base = parse(snapshot)
@@ -120,7 +110,6 @@ export function isBefore(a: string | null | undefined, b: string | null | undefi
   return !!x && !!y && x.getTime() < y.getTime()
 }
 
-/** "2026-10-21" in the given zone, for grouping. */
 export function dayKey(value: string | null | undefined, zone?: string | null): string {
   const date = parse(value)
   if (!date) return ""
@@ -131,7 +120,6 @@ export function dayKey(value: string | null | undefined, zone?: string | null): 
   return `${year}-${month}-${day}`
 }
 
-/** "Wednesday 21 October" */
 export function fmtDayHeading(value: string | null | undefined, zone?: string | null): string {
   const date = parse(value)
   if (!date) return ""

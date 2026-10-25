@@ -1,7 +1,3 @@
-// The agent loop. A case runs until the agent hands it to a person, closes it,
-// or stops talking. Every lookup, message and proposal is written to the case's
-// steps as it happens, so the control room can show the work live.
-
 import { datasetMetadata } from "@/lib/schema"
 import { db } from "./conn"
 import { AGENT_MODEL, openRouterComplete, type ChatMessage, type CompleteFn } from "./model"
@@ -14,17 +10,13 @@ import { findTool, toolSpecs } from "./tools"
 export type Deps = { complete: CompleteFn; model?: string }
 const defaults: Deps = { complete: openRouterComplete }
 
-// Enough room to look things up and have a short chat with the driver, but not
-// enough to wander off. Hitting it is treated as "needs a person".
 const MAX_TURNS = 24
 
-// One run per case at a time, so two clicks never interleave two conversations.
 const running = new Set<string>()
 
 export async function openCase(input: { orderId: string; trigger: string; scenario?: string | null }): Promise<CaseRow> {
   const caseRow = await createCase({ ...input, agentId: AGENT_ID })
   await addStep(caseRow.id, { actor: "system", kind: "note", body: `Case opened: ${input.trigger}` })
-  // The dataset is a frozen snapshot, so "now" for the agent is the snapshot time, not the wall clock.
   const [meta] = await db.select().from(datasetMetadata).limit(1)
   const now = meta?.snapshotAt.toISOString() ?? new Date().toISOString()
   await updateCase(caseRow.id, {
@@ -41,7 +33,6 @@ export async function runCase(caseId: string, deps: Deps = defaults): Promise<vo
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     await addStep(caseId, { actor: "system", kind: "error", body: `The agent stopped because of an error: ${message}` })
-    // The headline is what an operator reads, so it says what happened in their words. The technical reason stays in the step above.
     const noModel = /OPENROUTER_API_KEY|openrouter|fetch failed|401|402/i.test(message)
     await updateCase(caseId, {
       status: "failed",
@@ -72,8 +63,6 @@ async function loop(caseId: string, deps: Deps): Promise<void> {
     const text = reply.content?.trim()
 
     if (!reply.tool_calls?.length) {
-      // The agent answered in words without handing over. That is fine as a
-      // reply to a person; otherwise a person should look at what it said.
       await addStep(caseId, { actor: "agent", kind: "message", body: text || "(no reply)", data: { to: "person" } })
       if (caseRow.pendingDecision) await updateCase(caseId, { transcript, status: "needs_person" })
       else if (caseRow.status === "resolved") await updateCase(caseId, { transcript, status: "resolved" })
@@ -121,7 +110,6 @@ async function loop(caseId: string, deps: Deps): Promise<void> {
 
 export type Choice = "approve" | "change" | "reject"
 
-/** A person's answer to the pending decision. The agent picks the case up again afterwards. */
 export async function decide(caseId: string, input: { choice: Choice; note?: string; by?: string }, deps: Deps = defaults): Promise<void> {
   const caseRow = await getCase(caseId)
   if (!caseRow?.pendingDecision) throw new Error("There is no decision waiting on this case.")
@@ -140,11 +128,8 @@ export async function decide(caseId: string, input: { choice: Choice; note?: str
 
   let instruction: string
   if (input.choice === "approve" && isPersonLed(action)) {
-    // A call or similar: the person did it, and what they write is the outcome.
-    // Nothing else happened, so the agent must not invent an answer from the customer.
     instruction = `The person has done this themselves (${action}).${note ? ` What they report:\n${note}` : " They did not say how it went."}\nOnly what they report has happened, nothing else from your recommendation. Act on it within your permissions: tell the driver what is now decided, get any quotes the next step needs, then hand over the next decision or close the case. If the outcome is still open, hand over hold_and_wait with what you are waiting for.`
   } else if (input.choice === "approve") {
-    // Nothing real is connected, so carrying out an approved action means writing down that it happened.
     await addStep(caseId, { actor: "system", kind: "action", body: `Done (simulated): ${label}. ${decision.recommendation?.summary ?? ""}`.trim(), data: { action, simulated: true } })
     instruction = `The person approved your recommendation (${action}).${note ? ` Their note: ${note}` : ""} Exactly that action has been carried out (${label.toLowerCase()}); anything else in your summary, such as telling the customer, has not happened unless the note says so. Follow up within your permissions, then close the case or hand over the next decision.`
   } else if (input.choice === "change") {
@@ -159,7 +144,6 @@ export async function decide(caseId: string, input: { choice: Choice; note?: str
   await runCase(caseId, deps)
 }
 
-/** A person writing to the agent on a case, outside a decision. */
 export async function tellAgent(caseId: string, input: { text: string; by?: string }, deps: Deps = defaults): Promise<void> {
   const caseRow = await getCase(caseId)
   if (!caseRow) throw new Error(`No case ${caseId}`)

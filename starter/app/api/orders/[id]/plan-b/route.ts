@@ -4,8 +4,6 @@ import { isPriority } from "@/lib/agent/priority"
 
 export const runtime = "nodejs"
 
-// The legwork does not depend on the priority, so it is kept for a while and
-// only the ranking is redone when the operator switches. "refresh" redoes the lookups.
 const KEEP_MS = 10 * 60_000
 const prepared = new Map<string, PlanB>()
 

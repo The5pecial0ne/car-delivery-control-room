@@ -1,14 +1,3 @@
-// The tools the agent can use. They come in three kinds:
-//
-//   lookup  reads the order's records. Free, and always the first thing to try.
-//   ask     talks to someone the agent is allowed to contact (the driver, the pickup desk).
-//   findings writes down what the investigation found, before any recovery plan.
-//   act     does one of the few things policy.ts lets the agent do without a person.
-//   finish  hands the case to a person with one decision, or closes it.
-//
-// Every record that comes back carries its table and id, so the agent can cite
-// where each fact came from and the control room can link to it.
-
 import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { addresses, alerts, conversations, customers, drivers, messages, orderItems, orders, relatedRecords, vehicles } from "@/lib/schema"
 import { db } from "./conn"
@@ -20,13 +9,10 @@ import type { ChatMessage, CompleteFn, ToolSpec } from "./model"
 import { ACTION_KINDS, ACTIONS, AUTO_ACTIONS, isActionKind } from "./policy"
 import { addStep, type CaseRow, type CaseStatus } from "./store"
 
-// The transcript so far, so finishing tools can check what the agent has actually seen.
 export type ToolContext = { caseRow: CaseRow; complete: CompleteFn; transcript: ChatMessage[] }
 export type ToolOutcome = {
   content: unknown
-  // One plain line for the trace, written for an operations person.
   summary: string
-  // Set when the tool ends the agent's turn.
   finish?: { status: CaseStatus; headline: string; pendingDecision: Record<string, unknown> | null }
 }
 type Tool = {
@@ -41,8 +27,6 @@ const str = (value: unknown) => typeof value === "string" ? value : ""
 const orderArg = { order_id: { type: "string", description: "Order id such as ord-00322. Leave out to use this case's order." } }
 const orderOf = (args: Record<string, unknown>, ctx: ToolContext) => str(args.order_id) || ctx.caseRow.orderId
 
-// A source is only good if a tool actually returned it on this case. The model
-// is good at producing ids that look right, so we check rather than trust.
 function unseenSources(sources: string[], ctx: ToolContext): string[] {
   const seen = ctx.transcript.map((message) => message.role === "tool" ? message.content : "").join("\n")
   return sources.filter((source) => {
@@ -53,8 +37,6 @@ function unseenSources(sources: string[], ctx: ToolContext): string[] {
 
 const HEADLINE_MAX = 140
 
-// Where in the transcript a tool last ran successfully, so the finishing tools
-// can check the order of work: findings must come after the last answer.
 function lastSuccess(transcript: ChatMessage[], names: string[]): number {
   let found = -1
   transcript.forEach((message, index) => {
@@ -78,8 +60,6 @@ function needsFreshFindings(ctx: ToolContext): string | false {
 const FACT_STATUS = ["confirmed", "reported", "planned", "unknown"]
 const TIMELINE_STATUS = ["planned", "reported", "confirmed", "projected", "missed"]
 
-// How each option scores, so the desk can rank them by what the person cares
-// about most right now: speed, cost or certainty.
 const OPTION_SCORES = {
   arrives_at: { type: "string", description: "When the car would reach the buyer with this option (UTC, ISO 8601), if you can tell." },
   cost_eur: { type: "number", description: "Extra cost to Bahn, as far as known." },
@@ -87,10 +67,8 @@ const OPTION_SCORES = {
 }
 const CERTAINTY = ["confirmed", "quoted", "uncertain"]
 const isTime = (value: unknown) => typeof value === "string" && !Number.isNaN(new Date(value).getTime())
-// Ids belong in the sources, not in what a person reads first.
 const HAS_ID = /\b(ord|cd)-\d{5,}\b|\b[a-z]+-x?[0-9a-f]{8,}\b|agent_steps|simulated\//i
 
-// Collections the agent may read through get_records. The big shared tables stay out.
 const READABLE = [
   "time_windows", "tracking_observations", "work_assignments", "assignment_steps", "transport_plans", "transport_points",
   "transport_segments", "travel_options", "travel_reservations", "travel_confirmations", "incidents", "agent_proposals",
@@ -137,10 +115,8 @@ const tools: Tool[] = [
           vehicles: items.map(({ item, vehicle }) => ({ table: "vehicles", id: vehicle.id, role: item.role, make: vehicle.make, model: vehicle.model, year: vehicle.modelYear, fuel: vehicle.fuel, registration: vehicle.registration })),
           pickup: place(order.pickupAddressId),
           delivery: place(order.deliveryAddressId),
-          // Local times next to the UTC ones, so nobody has to convert in their head.
           time_windows: windows.map((row) => ({ ...row, local: `${localTime(str(row.start_at), row.timezone)} to ${localTime(str(row.end_at), row.timezone)}` })),
           driver_work: assignments.map((row) => ({ ...row, driver: driverRows.find((driver) => driver.id === row.driver_id)?.displayName ?? null })),
-          // Places on this order where the same trouble keeps coming back. Worth a line in a hand-over.
           site_patterns: patterns.map((pattern) => ({
             site: pattern.siteName, troubled_orders: pattern.troubledOrders, of_orders: pattern.orders,
             themes: pattern.themes.map((theme) => theme.label), advice: pattern.themes[0]?.advice,
@@ -457,7 +433,6 @@ const tools: Tool[] = [
       const sources = Array.isArray(args.sources) ? args.sources.map(String) : []
       const unseen = unseenSources(sources, ctx)
       if (!sources.length || unseen.length) return { content: { error: `Not done: cite the records that show it is safe${unseen.length ? `; not seen on this case: ${unseen.join(", ")}` : ""}.` }, summary: "" }
-      // Nothing real is connected, so doing it means writing it down.
       return {
         content: { ok: true, simulated: true, note: "Done and recorded. People can see it on the case." },
         summary: `Did on its own (simulated): ${ACTIONS[action].label.toLowerCase()}. ${str(args.reason)}`,
@@ -557,7 +532,6 @@ const tools: Tool[] = [
       return {
         content: { ok: true, note: "Handed to a person. Wait for their decision." },
         summary: `Asked a person to decide: ${ACTIONS[action].label.toLowerCase()}`,
-        // Earliest deadline first, so the desk can count down to the next one.
         finish: { status: "needs_person", headline: str(args.headline), pendingDecision: { ...args, deadlines: [...deadlines].sort((a, b) => String(a.at).localeCompare(String(b.at))) } },
       }
     },

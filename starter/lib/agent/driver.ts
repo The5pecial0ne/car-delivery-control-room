@@ -1,9 +1,3 @@
-// A simulated driver, so the agent has someone real-sounding to talk to in the
-// demo. It is a second, smaller model playing the driver on the order. It sees
-// the same chat the driver would see, plus a short private scenario that says
-// what is really going on (where they are, what the dashboard shows). The agent
-// never sees that scenario; it has to ask.
-
 import { and, asc, eq, inArray } from "drizzle-orm"
 import { conversations, drivers, messages, relatedRecords } from "@/lib/schema"
 import { db } from "./conn"
@@ -20,7 +14,6 @@ export async function simulateDriverReply(caseRow: CaseRow, complete: CompleteFn
   const driverId = typeof assignment?.details.driver_id === "string" ? assignment.details.driver_id : null
   const [driver] = driverId ? await db.select().from(drivers).where(eq(drivers.id, driverId)).limit(1) : []
 
-  // What the driver has already said and heard on this order, from the dataset.
   const threads = await db.select().from(conversations).where(eq(conversations.orderId, caseRow.orderId))
   const earlier = threads.length
     ? await db.select().from(messages).where(inArray(messages.conversationId, threads.map((thread) => thread.id))).orderBy(asc(messages.authoredAt))
@@ -31,7 +24,6 @@ export async function simulateDriverReply(caseRow: CaseRow, complete: CompleteFn
       ? { role: "assistant", content: row.body }
       : { role: "user", content: `[Bahn] ${row.body}` })
 
-  // And what has been said since the agent picked the case up.
   for (const step of await listSteps(caseRow.id)) {
     if (step.kind !== "message") continue
     if (step.actor === "driver") history.push({ role: "assistant", content: step.body })
@@ -52,8 +44,6 @@ export async function simulateDriverReply(caseRow: CaseRow, complete: CompleteFn
     "This is the truth as of now. It overrides anything you said earlier in the chat, because things have moved on since. Stay consistent with it in every reply.",
   ].join("\n")
 
-  // A small model drifts back to the old chat ("still in the queue"), so remind
-  // it of where things stand right next to the message it is answering.
   const last = history.at(-1)
   if (last?.role === "user" && scenario) {
     history[history.length - 1] = { role: "user", content: `${last.content}\n\n(Private note to you, not part of Bahn's message: right now, ${scenario})` }

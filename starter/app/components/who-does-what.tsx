@@ -1,9 +1,5 @@
 "use client"
 
-// Who does what, straight from the agent's own permissions, so the page can
-// never promise something the agent is not allowed to do. When an action is
-// switched to automatic in policy.ts it moves to the first list by itself.
-
 import { ACTIONS } from "@/lib/agent/policy"
 import { Disclosure } from "./disclosure"
 

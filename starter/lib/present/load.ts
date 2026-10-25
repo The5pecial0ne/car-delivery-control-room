@@ -1,6 +1,3 @@
-// Database access for the projections. The routes call these and hand the
-// resulting bundles to the pure builders.
-
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import {
@@ -128,7 +125,6 @@ export function makeBundle(input: {
   }
 }
 
-/** Every order with the records the board reads, in one pass over the database. */
 export async function loadBoardBundles(): Promise<{ snapshotAt: string | null; bundles: Bundle[] }> {
   const shared = await loadShared()
   const dir = shared.makeDirectory()
@@ -152,9 +148,6 @@ export async function loadBoardBundles(): Promise<{ snapshotAt: string | null; b
   }
   const itemsByOrder = group(itemRows.map((row) => ({ orderId: row.item.orderId, row })))
   const alertsByOrder = group(alertRows)
-  // A support case can concern two orders. File each thread under the order it
-  // was filed on and under every related order, once per order, so the board
-  // reads the same conversations as the order record.
   const threadsByOrder = new Map<string, (typeof conversations.$inferSelect)[]>()
   for (const thread of threadRows) {
     const related = Array.isArray(thread.details.related_order_ids) ? thread.details.related_order_ids : []
@@ -206,7 +199,6 @@ export type OrderLoad = {
   bundle: Bundle
 }
 
-/** One order with every linked record, including shared bundle offers and threads filed on related orders. */
 export async function loadOrder(id: string): Promise<OrderLoad | null> {
   const [order] = await db.select().from(orders).where(eq(orders.id, id)).limit(1)
   if (!order) return null
@@ -227,8 +219,6 @@ export async function loadOrder(id: string): Promise<OrderLoad | null> {
     db.select().from(operationalEvents).where(eq(operationalEvents.orderId, id)).orderBy(desc(operationalEvents.recordedAt)).limit(50),
     db.select().from(relatedRecords).where(eq(relatedRecords.orderId, id)),
   ])
-  // A support case can concern two orders. Show its complete thread from either
-  // order detail, while keeping each message's original order attribution.
   const threads = [...new Map([...primaryThreads, ...linkedThreads].map((thread) => [thread.id, thread])).values()]
     .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
   const threadIds = threads.map((thread) => thread.id)
@@ -236,8 +226,6 @@ export async function loadOrder(id: string): Promise<OrderLoad | null> {
     ? await db.select().from(messages).where(inArray(messages.conversationId, threadIds)).orderBy(asc(messages.authoredAt))
     : []
   const related: Record<string, (typeof relatedRecords.$inferSelect)[] | undefined> = Object.groupBy(records, (record) => record.collection)
-  // A bundle is one offer covering several orders. Keep one stored offer and
-  // surface its membership and shared acceptance on each member order.
   const memberBundles = await db.select().from(relatedRecords).where(and(
     eq(relatedRecords.collection, "market_offers"),
     sql`${relatedRecords.details} -> 'order_ids' @> ${JSON.stringify([id])}::jsonb`,
@@ -300,7 +288,6 @@ export async function loadOrder(id: string): Promise<OrderLoad | null> {
   }
 }
 
-/** References for a set of order ids, for links between records. */
 export async function orderRefs(ids: Iterable<string>): Promise<Record<string, string>> {
   const unique = [...new Set(ids)]
   if (!unique.length) return {}

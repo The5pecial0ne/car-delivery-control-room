@@ -14,7 +14,6 @@ function plural(count: number, noun: string, nouns = `${noun}s`): string {
   return `${count} ${count === 1 ? noun : nouns}`
 }
 
-/** Every linked record, folded away until someone opens it. */
 export function RecordsPanel({ view, orderId }: { view: RecordView; orderId: string }) {
   const steps = view.journey.groups.reduce((sum, group) => sum + group.steps.length, 0)
   const openAlerts = view.alerts.filter((alert) => alert.status === "OPEN").length

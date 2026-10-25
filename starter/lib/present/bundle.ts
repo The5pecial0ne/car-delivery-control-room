@@ -1,6 +1,3 @@
-// One order with everything the projections read, in a shape both the board and
-// the record view can share. The routes build bundles from the database rows.
-
 import type { Directory } from "./actors"
 import type { Row } from "./types"
 
@@ -40,7 +37,6 @@ export type Bundle = {
   places: Map<string, PlaceRow>
   sites: Map<string, SiteRow>
   dir: Directory
-  /** Support inbox threads whose candidate or linked orders include this order. */
   inboxThreads: RelatedRow[]
   bundleOrderRefs: Record<string, string>
 }
@@ -77,7 +73,6 @@ export function refCount(value: unknown): number {
   return list(value).length
 }
 
-/** The plan the journey is read from: the active plan, or the newest plan when none is active. */
 export function journeyPlan(bundle: Bundle): { plan: RelatedRow | null; active: boolean } {
   const planId = str(bundle.order.details.active_plan_id)
   const plans = rows(bundle, "transport_plans")
@@ -87,7 +82,6 @@ export function journeyPlan(bundle: Bundle): { plan: RelatedRow | null; active: 
   return { plan: newest, active: false }
 }
 
-/** Points of the journey plan, in sequence. */
 export function activePoints(bundle: Bundle): RelatedRow[] {
   const { plan } = journeyPlan(bundle)
   return rows(bundle, "transport_points")

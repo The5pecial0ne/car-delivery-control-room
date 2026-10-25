@@ -1,13 +1,3 @@
-// Run the on-the-road agent on one order from the command line and print what
-// it did, step by step. Needs OPENROUTER_API_KEY in .env.
-//
-//   npm run agent -- ord-00322
-//   npm run agent -- ord-00322 "Driver reports a red warning light" "What the driver privately knows"
-//   npm run agent -- ord-00322 --approve     then approve whatever it hands over, to see the follow-up
-//   npm run agent -- ord-00322 --approve --note="Dealer sends their own assistance"   with how a call went
-//
-// With only an order id, the order's demo scenario from lib/agent/scenarios.ts is used.
-
 import "dotenv/config"
 import { decide, openCase, runCase } from "@/lib/agent/loop"
 import { closeDb } from "@/lib/agent/conn"

@@ -1,10 +1,5 @@
 "use client"
 
-// One case, read in a few seconds: what is wrong, the next deadline that
-// cannot be undone, what to optimise for, the one recommended plan and what
-// needs approving. Everything the agent dug up (evidence, Plan B, the journey,
-// its trace, the order history) is one line each underneath and one click away.
-
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { actionLabel, isPersonLed, parseSource, type Decision } from "@/lib/agent/labels"
 import { fmtClock } from "@/lib/present/time"
@@ -42,19 +37,12 @@ const STATUS: Record<CaseSummary["status"], { label: string; tone: "warn" | "acc
   failed: { label: "Agent stopped", tone: "danger" },
 }
 
-// One label above the title. For a hand-over the urgency says more than "needs your decision".
 const URGENT_LABEL: Record<string, string> = { now: "Act now", today: "Decide today", can_wait: "Can wait" }
 
-// Deadlines read as "29 min until the driver must leave", so a common first word
-// loses its capital. Place names and days keep theirs.
 const COMMON_START = /^(Driver|Driver's|Customer|Customer's|Delivery|Pickup|Car|Ferry|Train|Last|Next|The|Check-in|Release|Handover|Promise|Collection|Booking|Return|Cannot|Can|Must|No|Breach|All|Only|Every|Delays?|Adds?)\b/
 const lowerStart = (text: string) => COMMON_START.test(text) ? text.charAt(0).toLowerCase() + text.slice(1) : text
 const sentence = (text: string) => /[.!?…]$/.test(text.trim()) ? text.trim() : `${text.trim()}.`
 
-/**
- * The top of a case: one label, the car and route, one sentence on what is
- * wrong, and the one deadline that matters next with what it costs to miss it.
- */
 export function CaseHead({ label, tone, live, title, issue, deadline, note }: {
   label: string | null; tone: "warn" | "accent" | "ok" | "danger"; live?: boolean; title: string; issue: string | null
   deadline?: { left: string | null; what: string; after?: string | null; tone: string } | null
@@ -72,7 +60,6 @@ export function CaseHead({ label, tone, live, title, issue, deadline, note }: {
   </header>
 }
 
-/** A short, plain issue line: the agent's headline without its question, at most two sentences. */
 export function issueLine(...texts: (string | null | undefined)[]) {
   const parts = texts.filter((text): text is string => !!text?.trim()).map((text) => firstSentence(text, 130))
     .filter((text) => !text.endsWith("?"))
@@ -88,12 +75,9 @@ export type CaseData = { case: CaseSummary; steps: Step[]; sources?: Record<stri
 
 export function CaseView({ summary, snapshotAt, onChange, onLoaded, onPlan, title, timeline, after }: {
   summary: CaseSummary; snapshotAt: string | null; onChange: () => void
-  /** Car and route, such as "BMW M4 · Helsinki → Turku". */
   title?: string | null
   onLoaded?: (data: CaseData) => void; onPlan?: (plan: RankedPlanB | null) => void
-  /** The order's journey line, folded under the decision. */
   timeline?: ReactNode
-  /** More folded sections, such as the order record. */
   after?: ReactNode
 }) {
   const [steps, setSteps] = useState<Step[] | null>(null)
@@ -111,7 +95,6 @@ export function CaseView({ summary, snapshotAt, onChange, onLoaded, onPlan, titl
     setSteps(data.steps)
     setSources(data.sources ?? {})
     setError("")
-    // The order timeline above the case follows the same steps.
     loaded.current?.(data)
   }, [summary.id])
 
@@ -122,7 +105,6 @@ export function CaseView({ summary, snapshotAt, onChange, onLoaded, onPlan, titl
     return () => clearInterval(timer)
   }, [load, live])
 
-  // Something the person did changes the case: reload it here and in the list.
   const act = async (url: string, body: unknown) => {
     try {
       await post(url, body)
@@ -144,7 +126,6 @@ export function CaseView({ summary, snapshotAt, onChange, onLoaded, onPlan, titl
   const [priority, setPriority] = usePriority()
   const [ranked, setRanked] = useState(false)
   const planB = usePlanB(detail.orderId, priority, onPlan)
-  // Each time the agent updates what it knows, Plan B is looked up again.
   const { refresh: refreshPlan } = planB
   const rounds = history.length
   useEffect(() => { if (rounds) refreshPlan() }, [rounds]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -168,7 +149,6 @@ export function CaseView({ summary, snapshotAt, onChange, onLoaded, onPlan, titl
 
     {detail.status === "resolved" ? <p className="case-working">The agent handled this without you. Nothing to decide. What it did is in the agent trace below.</p>
       : <section className="case-decide" id="decide" aria-label="Decision">
-      {/* The agent's own pick leads until the person picks a priority on this case, as in "the agent shows one decision". */}
       <PrioritySwitch priority={decision && !ranked ? null : priority} onChange={(value) => { setRanked(true); setPriority(value) }} />
       {decision && <DecisionPanel decision={decision} zone={zone} priority={priority} ranked={ranked} onAct={(body) => act(`/api/cases/${detail.id}/decision`, body)} />}
       {!decision && planB.plan && <PreparedOptions plan={planB.plan} priority={priority}
@@ -218,7 +198,6 @@ function DecisionPanel({ decision, zone, priority, ranked, onAct }: { decision: 
   const [busy, setBusy] = useState(false)
   const rows = useMemo(() => {
     const all = agentRows(decision, priority, zone)
-    // Before a priority is chosen, the agent's pick comes first and the rest keep their ranked order.
     return ranked ? all : [...all.filter((row) => row.tag === "Agent's pick"), ...all.filter((row) => row.tag !== "Agent's pick")]
   }, [decision, priority, zone, ranked])
 
@@ -231,10 +210,6 @@ function DecisionPanel({ decision, zone, priority, ranked, onAct }: { decision: 
     const sent = recommendation.customer_message_draft ? `${edited ? "Edited customer message, as sent" : "Customer message sent as drafted"}: ${draft.trim()}` : ""
     run({ choice: "approve", note: [outcome?.trim() && `How it went: ${outcome.trim()}`, sent].filter(Boolean).join("\n\n") || undefined })
   }
-  // The agent's own pick is approved as it stands (a step the person does
-  // themselves first asks how it went). Any other option goes back to the
-  // agent as "do this instead", exactly as before, so nothing runs without
-  // the same checks.
   const choose = (row: OptionRow) => row.option && run({ choice: "change", note: `${row.tag === "Plan B" ? "Switch to plan B" : "Do this instead"}${ranked ? ` (what matters most today: ${priority})` : ""}: ${row.option.summary ?? row.title}` })
   const approveRow = (row: OptionRow) => row.tag === "Agent's pick" ? (personLed ? setMode("done") : approve()) : choose(row)
   const best = rows[0] ?? { key: "pick", tag: "Agent's pick", title: actionLabel(recommendation.action), summary: recommendation.summary ?? null, why: "", arrives: null, cost: null, costBasis: null, certainty: null, risk: null, approval: true }
@@ -301,7 +276,6 @@ function Findings({ decision, steps }: { decision: Decision; steps: Step[] }) {
   </section>
 }
 
-// Lookups come in bursts. Folding each burst into one line keeps the story readable.
 type Row = { type: "step"; step: Step } | { type: "lookups"; steps: Step[] }
 
 function Timeline({ steps, live }: { steps: Step[]; live: boolean }) {

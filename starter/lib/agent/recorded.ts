@@ -1,9 +1,3 @@
-// Recorded demo cases. A real run of the four demo scenarios is saved to
-// demo/recorded-cases.json, so a fresh clone shows the agent's work without a
-// model key. Each case and every step in its trace is kept exactly as the
-// agent left it; only the clock is moved so the newest step lands "now", which
-// keeps the countdowns as fresh as they were right after the run.
-
 import { readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { asc, inArray } from "drizzle-orm"
@@ -17,7 +11,6 @@ type CaseRow = typeof agentCases.$inferSelect
 type StepRow = typeof agentSteps.$inferSelect
 type Recorded = { savedAt: string; note: string; cases: (Omit<CaseRow, "createdAt" | "updatedAt"> & { createdAt: string; updatedAt: string; steps: (Omit<StepRow, "createdAt"> & { createdAt: string })[] })[] }
 
-/** Writes every case on the desk, with its steps, to the recorded file. */
 export async function saveRecorded(): Promise<number> {
   const cases = await listCases()
   const steps = cases.length ? await db.select().from(agentSteps).where(inArray(agentSteps.caseId, cases.map((row) => row.id))).orderBy(asc(agentSteps.seq)) : []
@@ -33,7 +26,6 @@ export async function saveRecorded(): Promise<number> {
   return cases.length
 }
 
-/** Clears the desk and puts the recorded cases on it, shifted so the newest step is now. */
 export async function loadRecorded(now = Date.now()): Promise<number> {
   const recorded = JSON.parse(await readFile(RECORDED_FILE, "utf8")) as Recorded
   const times = recorded.cases.flatMap((row) => [row.updatedAt, ...row.steps.map((step) => step.createdAt)]).map((iso) => new Date(iso).getTime())
@@ -41,7 +33,6 @@ export async function loadRecorded(now = Date.now()): Promise<number> {
   const moved = (iso: string) => new Date(new Date(iso).getTime() + shift)
 
   for (const row of await listCases()) await deleteCase(row.id)
-  // A changed dataset (DATASET_DIR) may not have the demo orders. Their cases are skipped, not an error.
   const known = new Set((await db.select({ id: orders.id }).from(orders).where(inArray(orders.id, recorded.cases.map((row) => row.orderId)))).map((row) => row.id))
   const usable = recorded.cases.filter((row) => known.has(row.orderId))
   for (const { steps, ...row } of usable) {

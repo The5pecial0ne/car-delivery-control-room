@@ -1,14 +1,9 @@
 "use client"
 
-// The parts of a hand-over that help a person act in time: what must happen
-// before when, as a countdown rather than a risk score. Plan B and the options
-// ranked by what matters most today live in recovery.tsx.
-
 import { useEffect, useState } from "react"
 import { caseNow, cityOfZone, clockIn, countdown } from "@/lib/agent/clock"
 import type { Deadline } from "@/lib/agent/labels"
 
-/** The case clock, ticking every 20 seconds. */
 export function useCaseNow(snapshotAt: string | null | undefined, createdAt: string): number {
   const [now, setNow] = useState(() => caseNow(snapshotAt, createdAt))
   useEffect(() => {
@@ -19,11 +14,6 @@ export function useCaseNow(snapshotAt: string | null | undefined, createdAt: str
   return now
 }
 
-/**
- * The soonest deadline still ahead. The agent does not always list them in
- * time order, and a delivery promise days away must never hide the driver who
- * has to leave in half an hour.
- */
 export const nextDeadline = (deadlines: Deadline[] | undefined, now: number) =>
   (deadlines ?? []).filter((deadline) => new Date(deadline.at).getTime() > now)
     .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())[0] ?? null

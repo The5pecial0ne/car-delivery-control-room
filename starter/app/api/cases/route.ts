@@ -11,7 +11,6 @@ export const runtime = "nodejs"
 export async function GET() {
   const cases = await listCases()
   const orderIds = [...new Set(cases.map((row) => row.orderId))]
-  // Enough about each order to recognise it in a list: reference, car, customer and route.
   const orderRows = orderIds.length ? await db.select({ order: orders, customer: customers.name }).from(orders)
     .leftJoin(customers, eq(orders.customerId, customers.id)).where(inArray(orders.id, orderIds)) : []
   const cars = orderIds.length ? await db.select({ orderId: orderItems.orderId, role: orderItems.role, make: vehicles.make, model: vehicles.model })
@@ -26,11 +25,9 @@ export async function GET() {
       from: city(order.pickupAddressId), to: city(order.deliveryAddressId),
     }]
   }))
-  // Cases run on the snapshot's clock, so countdowns need its start.
   const [meta] = await db.select().from(datasetMetadata).limit(1)
   return NextResponse.json({
     snapshotAt: meta?.snapshotAt.toISOString() ?? null,
-    // The model transcript and the driver's private scenario are the agent's business, not the interface's.
     cases: cases.map(({ transcript: _transcript, scenario: _scenario, ...rest }) => ({ ...rest, running: isRunning(rest.id), order: orderInfo.get(rest.orderId) ?? null })),
     demos: SCENARIOS.map(({ orderId, title }) => ({ orderId, title, open: cases.some((row) => row.orderId === orderId && row.status !== "resolved") })),
   })
@@ -38,14 +35,12 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({})) as { orderId?: string; trigger?: string; scenario?: string }
-  // With only an order id, start that order's demo scenario.
   const demo = body.orderId && !body.trigger ? scenarioFor(body.orderId) : undefined
   const trigger = body.trigger ?? demo?.trigger
   if (!body.orderId || !trigger) {
     return NextResponse.json({ error: "Send orderId and trigger, or the orderId of a demo scenario", demos: SCENARIOS.map((item) => item.orderId) }, { status: 400 })
   }
   const caseRow = await openCase({ orderId: body.orderId, trigger, scenario: body.scenario ?? packScenario(demo?.driver, demo?.site) })
-  // Answer straight away and let the agent work in the background. The page polls the case.
   after(() => runCase(caseRow.id))
   return NextResponse.json({ id: caseRow.id }, { status: 201 })
 }
