@@ -691,7 +691,7 @@ export function buildRecordView(bundle: Bundle): RecordView {
   const tiles = buildTiles(bundle, keyDates, assignments, offers, decisive)
 
   const sections = [
-    { id: "attention", label: "Needs a person", count: attention.length },
+    { id: "attention", label: "Open points", count: attention.length },
     { id: "journey", label: "Journey", count: null },
     { id: "conversations", label: "Conversations", count: threads.length },
     { id: "evidence", label: "Evidence", count: proofs.length + documents.length },

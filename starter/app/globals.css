@@ -877,6 +877,7 @@ a.source:hover { text-decoration: underline; }
 .watch-card-route > .icon { color: var(--sand); }
 .watch-card-status { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; font-size: 12px; font-weight: 500; }
 .watch-card-next { color: var(--brown); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.watch-card-checked { font-size: 11.5px; color: var(--muted); }
 .watch-card-when { font-size: 11.5px; color: var(--subtle); }
 
 /* The workspace: one focused column, sections divided by rules, not boxes. */

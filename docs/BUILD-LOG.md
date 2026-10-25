@@ -2,6 +2,14 @@
 
 Notes on how we built this with coding agents, kept as we go so the demo video can tell the real story.
 
+## How we worked
+
+- **One person, many Claude Code sessions.** Manas worked with Claude Code in a project: one coordinator to talk to, and a separate session for each job (tuning the agent, the redesigns, a review against the brief). Each session kept its own branch, so work never collided.
+- **Specs in plain words, changes as pull requests.** Manas wrote what he wanted in a few sentences, often after looking at a screenshot. Every change came back as a PR with before and after screenshots, and nothing reached `main` until he said "merge". Seven PRs went in this way.
+- **We checked the work, not the claims.** Every change was looked at in a real browser at laptop and phone width. The agent was tuned by reading the full trace of real runs, not by reading its final answer. Tests and smoke checks ran before each PR.
+- **We threw things away.** A black, red and white theme (too extreme), a top navigation bar (the sidebar came back), a vertical timeline (too long), the urgency colour on headlines (it shouted), and the lane board as the home page. Each of those was a first answer that looked fine and was not right.
+- **We asked to be judged.** On Sunday morning we asked a fresh session for an honest verdict against the judging criteria, "candid, not cheerleading". It found that our own desk flagged 43 of 100 orders, the opposite of what the brief asks. Step 13 is the fix.
+
 ## Saturday 24 October
 
 **Plan.** We asked Claude Code to read the brief and the repo and to ask us questions before planning. We chose the on-the-road area because the brief's own example (a warning light on the motorway) is about it, and because a simulated driver makes a demo that feels alive. We kept the starter app instead of starting over.
@@ -109,3 +117,16 @@ Where it ended up, on the same three cases: the Bentley case hands over "call th
 - *Contrast.* Body text is black on white. Muted text is 6.6:1 and labels are 4.9:1 on white, and critical text uses the 65% red (8.9:1). Sidebar text is white at 72%, white on the red pill is 4.6:1, and focus rings are black in the workspace and white in the sidebar. Easy reading and the responsive layout are unchanged.
 - Two layout fixes found while checking: an opened delivery timeline could widen the case column (fold items now have `min-width: 0`), and the queue's critical edge is the deep red so forty rows don't all shout.
 - *Follow-up: fold away On track.* A small pill at the head of the On track panel folds it to a 52 px rail, and the case workspace widens into the space. The rail keeps the pill and the count, so the panel is one click from coming back. The list stays mounted while folded, so the selection, search and lane groups are untouched, and its scroll position is put back on reopen (once straight away, and again after the column finishes widening, because the text rewraps as it grows). On narrower desks, where the panel sits under the queue, and on phones it folds to its heading instead. The width change is a 0.2 s transition, which is switched off under reduced motion. The pill is labelled "Collapse On track" or "Show On track" and reports `aria-expanded`. It always starts open.
+
+## Sunday 25 October
+
+**Step 13: fixing what an honest review found.** We asked for a verdict against the brief before recording the video. Most of what it found was ours to fix, so we did.
+- *The desk flagged 43 of 100 orders.* 24 of them were there only for routine follow-ups: an open conversation, an owned alert, pickup details still to verify. Somebody already owns those. Now only orders with a real problem (at risk or worse, or another agent's proposal to review) and agent cases waiting for a person reach Needs attention. That is 19 orders. The rest sit in On track as "Followed up", and say by whom. One rule, `needsPerson` in `lib/present/queue.ts`, drives the desk, the All orders count and the "Needs a person" filter, so the pages still agree.
+- *"An order nobody checked is not fine."* That line is from Bahn's deck. Every On track order now says what came back clean: "Checked: no open alerts · driver on the road · app ETA inside the promise". It is built from records we already read, with no model call.
+- *A deadline from the past.* One order showed "Order created Thu 8 Oct" as its big countdown. A card now only leads with a date that is still ahead, and never with the order's creation.
+- *"Critical" next to "No decision needed".* That read as a contradiction. The third line now says who has the next move: "Decision needed", "Agent is working on it", "With Readiness desk", or "Not picked up yet".
+- *Plan B offered a backup driver for a paperwork hold.* A different driver does not fix a missing release letter. Plan B now only looks for drivers and sailings when the trouble is with the journey (the driver, travel, the ferry, the car on the road, the clock). Otherwise it says "No Plan B needed" and why, and the recommended step is to get the open point cleared by whoever holds it.
+- *Small things.* Prepared options gave arrival times in UTC next to panels in local time; they now use the destination's local time. Long text was cut mid-word ("pickup autho…"); it is now cut at a word. "Human approval required" became "Needs your OK", and "no delivery promise on file" became "No delivery date has been promised yet". When the agent cannot reach its model, the case now says that in plain words; the technical reason stays in its trace.
+- *A fresh clone showed no agent work.* The cases only existed after a run with a model key. We ran the four demo cases once more and saved them to `starter/demo/recorded-cases.json`, every step of every trace. `npm run db:seed` now loads them, with the clock moved so the countdowns start fresh. `npm run agent:demo` still runs them live, and `npm run demo:save` records a new run.
+- *Tests for the rules the desk leans on.* `npm run test` checks which orders reach a person, which deadline a card leads with, and how text is shortened. It needs no database or model.
+

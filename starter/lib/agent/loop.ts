@@ -41,7 +41,14 @@ export async function runCase(caseId: string, deps: Deps = defaults): Promise<vo
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     await addStep(caseId, { actor: "system", kind: "error", body: `The agent stopped because of an error: ${message}` })
-    await updateCase(caseId, { status: "failed", headline: "The agent stopped with an error. A person needs to take this over." })
+    // The headline is what an operator reads, so it says what happened in their words. The technical reason stays in the step above.
+    const noModel = /OPENROUTER_API_KEY|openrouter|fetch failed|401|402/i.test(message)
+    await updateCase(caseId, {
+      status: "failed",
+      headline: noModel
+        ? "The agent could not reach its language model, so it did nothing. A person needs to take this over."
+        : "The agent stopped with an error. A person needs to take this over.",
+    })
   } finally {
     running.delete(caseId)
   }

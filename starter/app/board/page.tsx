@@ -9,6 +9,7 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { LANES, laneLabel } from "@/lib/present/labels"
+import { needsPerson } from "@/lib/present/queue"
 import type { BoardCard, Overview } from "@/lib/present/types"
 import { AppFrame } from "../components/app-frame"
 import { DonutChart, type Segment } from "../components/donut-chart"
@@ -55,7 +56,7 @@ export default function Orders() {
 
   const visible = useMemo(() => {
     const cards = overview?.visible ?? []
-    return onlyAttention ? cards.filter((card) => card.attention.length > 0) : cards
+    return onlyAttention ? cards.filter((card) => needsPerson(card)) : cards
   }, [overview, onlyAttention])
   const attentionTotal = overview ? Object.values(overview.attentionCounts).reduce((sum, count) => sum + count, 0) : 0
   const filtering = !!search || onlyAttention
@@ -123,7 +124,7 @@ export default function Orders() {
 }
 
 function OrderRow({ card, showLane }: { card: BoardCard; showLane: boolean }) {
-  const needs = card.attention.length > 0
+  const needs = needsPerson(card)
   return <Link className="order-row" href={`/orders/${card.id}`} aria-label={`${card.vehicle}, ${card.from.city} to ${card.to.city}, ${card.reference}, ${laneLabel(card.displayLane)}${needs ? ", needs a person" : ""}`}>
     <span className="order-row-main">
       <b>{card.vehicle}</b>

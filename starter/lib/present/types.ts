@@ -88,6 +88,8 @@ export type BoardCard = {
   attentionTone: Tone
   decisive: KeyDate | null
   work: WorkLine[]
+  /** What came back clean when the records were read, such as "no open alerts" or "driver booked". */
+  checks: string[]
   updatedAt: string
 }
 

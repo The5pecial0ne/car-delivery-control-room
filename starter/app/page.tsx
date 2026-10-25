@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { laneLabel } from "@/lib/present/labels"
-import { latestCases, needsAttention, splitQueue } from "@/lib/present/queue"
+import { followUp, latestCases, needsAttention, splitQueue } from "@/lib/present/queue"
 import type { BoardCard } from "@/lib/present/types"
 import type { Overview } from "@/lib/present/types"
 import { AppFrame } from "./components/app-frame"
@@ -128,6 +128,7 @@ export default function ControlRoom() {
     }
   }
 
+  const followed = monitored.filter((card) => followUp(card)).length
   const waiting = [...cases.values()].filter((item) => item.status === "needs_person").length
   const lanes = [...new Set(monitored.map((card) => card.displayLane))]
   const loading = !overview && !error
@@ -136,7 +137,7 @@ export default function ControlRoom() {
     <header className="control-head">
       <h1 className="sr-only">Control room</h1>
       <p className="control-sum">{overview
-        ? <><span className="sum-alert"><b className="num">{attention.length}</b> need attention</span>{waiting ? <span><b className="num">{waiting}</b> waiting for your decision</span> : null}<span><b className="num">{monitored.length}</b> on track or done</span>{search ? <span>matching “{search}”</span> : null}</>
+        ? <><span className="sum-alert"><b className="num">{attention.length}</b> need attention</span>{waiting ? <span><b className="num">{waiting}</b> waiting for your decision</span> : null}<span><b className="num">{monitored.length}</b> on track or done{followed ? `, ${followed} of them followed up by the team` : ""}</span>{search ? <span>matching “{search}”</span> : null}</>
         : "Loading the snapshot"}</p>
       <label className="search">
         <span className="sr-only">Search orders</span>
@@ -179,7 +180,7 @@ export default function ControlRoom() {
           aria-label={watchOpen ? "Collapse On track" : "Show On track"} title={watchOpen ? "Collapse On track" : "Show On track"}>
           <Icon name="chevron" size={13} />
         </button>
-        <span className="watch-title-text">On track</span><span className="num">{overview ? monitored.length : ""}</span><small>Monitored, nothing to do</small>
+        <span className="watch-title-text">On track</span><span className="num">{overview ? monitored.length : ""}</span><small>Checked, nothing to do</small>
       </h2>
       {/* Folded, the list stays mounted but hidden, so nothing in it resets. */}
       <div className="control-watch-body" id="watch-body" hidden={!watchOpen}>

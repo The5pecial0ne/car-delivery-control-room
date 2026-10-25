@@ -99,7 +99,13 @@ const COVERED = new Set(["alert", "owned_alert", "incident", "work", "proposal"]
 const MAX_OPEN_ITEMS = 4
 
 const time = (at: string | null | undefined) => (at ? new Date(at).getTime() : NaN)
-const clip = (text: string, length = 120) => (text.length > length ? `${text.slice(0, length - 1).trimEnd()}…` : text)
+const clip = (text: string, length = 120) => {
+  if (text.length <= length) return text
+  // Cut at a word, never through one.
+  const cut = text.slice(0, length - 1)
+  const space = cut.lastIndexOf(" ")
+  return `${(space > length / 2 ? cut.slice(0, space) : cut).replace(/[\s,;:·–-]+$/, "")}…`
+}
 const firstSentence = (text: string) => clip(text.split(/(?<=[.?!])\s/)[0] ?? text)
 
 /** Travel bookings made in the same minute read as one line: "Train, flight and hotel booked". */

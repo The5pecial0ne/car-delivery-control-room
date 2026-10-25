@@ -8,13 +8,16 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "db:push": "drizzle-kit push",
-    "db:seed": "tsx scripts/seed.ts",
+    "db:seed": "tsx scripts/seed.ts && tsx scripts/demo-cases.ts",
     "attachments:seed": "tsx scripts/seed-attachments.ts",
     "attachments:smoke": "tsx scripts/smoke-attachments.ts",
     "smoke": "tsx scripts/smoke.ts",
+    "test": "tsx scripts/unit-test.ts",
     "agent": "tsx scripts/agent-run.ts",
     "agent:test": "tsx scripts/agent-test.ts",
-    "agent:demo": "tsx scripts/agent-demo.ts"
+    "agent:demo": "tsx scripts/agent-demo.ts",
+    "demo:load": "tsx scripts/demo-cases.ts",
+    "demo:save": "tsx scripts/demo-cases.ts --save"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1155.0",

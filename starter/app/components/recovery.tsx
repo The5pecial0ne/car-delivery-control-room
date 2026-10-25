@@ -112,7 +112,7 @@ export function ImpactLine({ row }: { row: Row }) {
     row.arrives ? /^(arrives|delivers|delivery|no |on |late|stays)/i.test(row.arrives) ? row.arrives : `Delivery ${row.arrives}` : "No new arrival time",
     cost,
     row.certainty ? CERTAINTY_LABEL[row.certainty] : null,
-    row.approval ? "Human approval required" : "The agent may do this alone",
+    row.approval ? "Needs your OK" : "The agent may do this alone",
   ].filter(Boolean)
   return <p className="impact-line">{parts.map((part, index) => <span key={index}>{part}</span>)}</p>
 }
@@ -120,7 +120,11 @@ export function ImpactLine({ row }: { row: Row }) {
 /** First sentence of a longer text, so a card can lead with the concrete step. */
 export const firstSentence = (text: string, length = 170) => {
   const sentence = text.split(/(?<=[.!?])\s/)[0] ?? text
-  return sentence.length > length ? `${sentence.slice(0, length - 1).trimEnd()}…` : sentence
+  if (sentence.length <= length) return sentence
+  // Cut at a word, never through one.
+  const cut = sentence.slice(0, length - 1)
+  const space = cut.lastIndexOf(" ")
+  return `${(space > length / 2 ? cut.slice(0, space) : cut).replace(/[\s,;:·–-]+$/, "")}…`
 }
 
 /** The recommended option for the chosen priority: one concrete step, one impact line, the actions. */
@@ -218,7 +222,8 @@ export function PlanBPanel({ state, onRefresh, agentPlan, onSwitch, busy, zone }
 }) {
   const plan = state.plan
   const title = state.state === "loading" ? "Preparing Plan B…" : state.state === "error" ? "Plan B could not be prepared"
-    : state.state === "insufficient" ? "No safe Plan B yet" : "Plan B is ready"
+    : state.state === "insufficient" ? plan?.checks.some((check) => check.key === "driver" && check.status === "not_needed") ? "No Plan B needed" : "No safe Plan B yet"
+    : "Plan B is ready"
   const found = plan?.checks.filter((check) => check.status === "found" && check.key !== "next" && check.key !== "promise").map((check) => check.label.toLowerCase()) ?? []
   const alternatives = plan ? plan.options.filter((option) => option.action !== "hold_and_wait").length : 0
   const line = state.state === "loading" ? "Looking up later sailings, backup drivers, hotels and the delivery promise."

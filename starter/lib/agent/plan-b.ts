@@ -16,7 +16,13 @@ import type { RecordView } from "@/lib/present/types"
 import type { Certainty } from "./labels"
 import type { ActionKind } from "./policy"
 import { needsApproval, rankOptions, whyFor, type Priority } from "./priority"
-import { backupDrivers, hotelOptions, localTime, planSailings, roadKm } from "./services"
+import { eq } from "drizzle-orm"
+import { fmtDateTime } from "@/lib/present/time"
+import { agentCases } from "@/lib/schema"
+import { zoneForCity } from "./clock"
+import { db } from "./conn"
+import { scenarioFor } from "./scenarios"
+import { backupDrivers, hotelOptions, planSailings, roadKm } from "./services"
 
 export type CheckStatus = "found" | "none" | "not_needed" | "unknown"
 
@@ -64,6 +70,21 @@ const CHECK_HOURS = 1.5
 const euro = (value: number) => value.toLocaleString("en-GB", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })
 const plusHours = (iso: string, hours: number) => new Date(new Date(iso).getTime() + hours * 3600_000).toISOString()
 
+// A different driver or a later sailing only helps when the trouble is with the
+// journey itself: the driver, their travel, the ferry, the car on the road or
+// the clock. Paperwork, payment, keys or a claim stay stuck whoever drives.
+const JOURNEY = /driver|travel|ferry|sailing|crossing|terminal|train|flight|hotel|position|tracking|\beta\b|late|delay|promise|breakdown|warning|incident|tow|roadside|availability|start check|no.?show|queue|not at the pickup|cannot find/i
+
+/** What the open points and any agent case on this order are about, as one text to match against. */
+async function problemText(orderId: string, view: RecordView): Promise<string> {
+  const cases = await db.select({ trigger: agentCases.trigger }).from(agentCases).where(eq(agentCases.orderId, orderId))
+  return [
+    ...view.attention.map((item) => `${item.title} ${item.detail ?? ""}`),
+    ...cases.map((row) => row.trigger),
+    scenarioFor(orderId)?.trigger ?? "",
+  ].join(" ")
+}
+
 function promiseOf(view: RecordView) {
   const promise = view.header.keyDates.find((item) => item.key === "promise")
   return promise ? { start: promise.start, end: promise.end ?? promise.start, zone: promise.zone } : null
@@ -73,8 +94,9 @@ function promiseOf(view: RecordView) {
 function againstPromise(arrives: string | undefined, view: RecordView): string {
   const promise = promiseOf(view)
   if (!arrives) return "No new arrival time could be worked out."
-  const when = localTime(arrives, promise?.zone ?? "UTC")
-  if (!promise) return `Arrives about ${when}. There is no delivery promise on file to check it against.`
+  // Local time where the car is going, the way the rest of the page shows times.
+  const when = fmtDateTime(arrives, promise?.zone ?? zoneForCity(view.header.to.city))
+  if (!promise) return `Arrives about ${when}. No delivery date has been promised yet.`
   const spare = (new Date(promise.end).getTime() - new Date(arrives).getTime()) / 3600_000
   return spare >= 0
     ? `Arrives about ${when}, ${Math.round(spare * 10) / 10} h inside the promise.`
@@ -118,17 +140,35 @@ export async function preparePlanB(orderId: string): Promise<PlanB | null> {
   const options: RecoveryOption[] = []
   const eta = currentEta(view)
   const promise = promiseOf(view)
+  const journey = JOURNEY.test(await problemText(orderId, view))
 
   // The safe default: change nothing until the open point is confirmed.
   const holdArrives = eta ?? undefined
+  const owner = view.attention[0]?.owner
+  // The open point by its own name, without the record type in front: "Release document unclear".
+  const openPoint = `“${problem.replace(/^(Open alert|Owned alert|Incident|Open conversation): /, "")}”`
   options.push({
-    id: "hold", action: "hold_and_wait", title: "Keep the plan and confirm the facts first",
-    summary: `Ask the site or the driver to confirm ${problem.charAt(0).toLowerCase()}${problem.slice(1)} before changing anything.`,
+    id: "hold", action: "hold_and_wait", title: journey ? "Keep the plan and confirm the facts first" : "Keep the plan and get the open point cleared",
+    summary: journey
+      ? `Ask the site or the driver to confirm ${problem.charAt(0).toLowerCase()}${problem.slice(1)} before changing anything.`
+      : `Ask ${owner ?? "whoever holds it"} to resolve ${openPoint} before the driver travels.`,
     arrives_at: holdArrives, cost_eur: 0, cost_basis: "No extra cost.", certainty: "confirmed",
-    delivery: holdArrives ? againstPromise(holdArrives, view) : "Keeps today's plan. There is no driver-app arrival time on file yet.",
+    delivery: holdArrives ? againstPromise(holdArrives, view) : "No change to today's plan. No driver-app arrival time yet.",
     risk: `If the problem turns out to be real, about ${CHECK_HOURS} h is lost before the next step starts.`,
     needs_approval: needsApproval("hold_and_wait"), sources: view.attention[0] ? [`${view.attention[0].section}/${view.attention[0].recordId}`] : [],
   })
+
+  if (!journey) {
+    checks.push(
+      { key: "ferry", label: "Later ferry", status: "not_needed", text: "Not looked for. The open point is not about the journey, so a later sailing would not fix it.", sources: [] },
+      { key: "driver", label: "Backup driver", status: "not_needed", text: "Not looked for. A different driver would face the same open point.", sources: [] },
+      { key: "next", label: "Safe next step", status: "found", text: `Chase the open point with ${owner ?? "whoever holds it"} before the driver travels.`, sources: [] },
+    )
+    return {
+      ...base, status: "insufficient", checks, options,
+      reason: `This is about ${openPoint}, not the driver or the route. Another driver or a later sailing would not fix it, so there is no Plan B to prepare. The step is to get the open point cleared.`,
+    }
+  }
 
   // Ferry: later sailings and what each one means for the driver and the promise.
   const sailings = await planSailings({ orderId })
@@ -216,7 +256,7 @@ export async function preparePlanB(orderId: string): Promise<PlanB | null> {
     text: promise ? (() => {
       const fastest = options.map((option) => option.arrives_at).filter((value): value is string => !!value).sort()[0]
       return fastest ? againstPromise(fastest, view).replace(/^Arrives/, "The fastest plan arrives") : "No plan has an arrival time yet."
-    })() : "There is no delivery promise on file.",
+    })() : "No delivery date has been promised yet.",
     sources: [],
   })
   checks.push({

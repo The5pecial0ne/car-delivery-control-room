@@ -13,7 +13,13 @@ We built the **"Needs you" desk** and an agent that works each case in **two sta
 
 How we built it: [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md). Demo walkthrough: [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md).
 
-**Run it:** follow "Run the starter" below. Put an OpenRouter key in `starter/.env` (`OPENROUTER_API_KEY=`), then run `npm run agent:demo` in `starter/` and open http://localhost:3000. You can also run one case from the terminal with `npm run agent -- ord-00322`. `npm run agent:test` checks the plumbing without spending credit.
+- Only orders with a real problem reach the desk (19 of 100 in the snapshot). Every other order says what was checked ("no open alerts · driver on the road · app ETA inside the promise"), or who is following it up.
+
+**Run it:** follow "Run the starter" below and open http://localhost:3000.
+
+- **No model key needed to see the agent's work.** `npm run db:seed` loads four recorded runs of the demo cases (`starter/demo/recorded-cases.json`), with every step of their traces.
+- **To run the agent live,** put an OpenRouter key in `starter/.env` (`OPENROUTER_API_KEY=`), then run `npm run agent:demo` in `starter/`. You can also run one case from the terminal with `npm run agent -- ord-00322`, or press "Hand to the agent" on any order that needs attention.
+- **Checks:** `npm run test` (the desk's rules, no database needed), `npm run agent:test` (the agent's plumbing with a scripted model, no credit spent), `npm run smoke` (data and pages agree).
 
 ---
 

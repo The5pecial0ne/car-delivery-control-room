@@ -2,7 +2,7 @@ import { deriveAttention, deriveKeyDates, latestTracking, strongestTone } from "
 import { type Bundle, isBeforeSnapshot, num, rows, str, strings } from "./bundle"
 import { label } from "./labels"
 import { fmtDateTime, fmtMoney, relativeTo } from "./time"
-import type { AttentionKind, BoardCard, WorkLine } from "./types"
+import type { AttentionKind, BoardCard, KeyDate, WorkLine } from "./types"
 
 const ICONS: Record<AttentionKind, WorkLine["icon"]> = {
   alert: "alert", owned_alert: "alert", work: "work", incident: "incident", waiting: "waiting", conversation: "waiting",
@@ -17,7 +17,7 @@ export function buildBoardCard(bundle: Bundle): BoardCard {
   const pickup = bundle.places.get(order.pickupAddressId)
   const delivery = bundle.places.get(order.deliveryAddressId)
   const attention = deriveAttention(bundle)
-  const { decisive } = deriveKeyDates(bundle)
+  const { keyDates, decisive } = deriveKeyDates(bundle)
   const tone = attention.length ? strongestTone(attention.map((item) => item.tone)) : "ok"
 
   const work: WorkLine[] = []
@@ -82,6 +82,41 @@ export function buildBoardCard(bundle: Bundle): BoardCard {
     attentionTone: tone,
     decisive,
     work: work.slice(0, MAX_LINES),
+    checks: deriveChecks(bundle, keyDates, !!active),
     updatedAt: order.updatedAt,
   }
+}
+
+/**
+ * What the records were checked for, in a few words each, so an order that
+ * needs nobody still says why it is fine. Only checks that came back clean are
+ * listed: a problem would have put the order in front of a person instead.
+ */
+function deriveChecks(bundle: Bundle, keyDates: KeyDate[], driverOnIt: boolean): string[] {
+  const lane = bundle.order.lane
+  if (lane === "cancelled") return []
+  const checks: string[] = []
+  const date = (key: KeyDate["key"]) => keyDates.find((item) => item.key === key) ?? null
+
+  if (!bundle.alerts.some((alert) => alert.status === "OPEN")) checks.push("no open alerts")
+  if (lane === "delivered") {
+    const promise = date("promise")
+    if (promise?.note?.startsWith("delivered within")) checks.push("delivered within the promise")
+    else if (date("delivered")) checks.push("handover recorded")
+    return checks
+  }
+
+  if (driverOnIt) checks.push(lane === "moving" ? "driver on the road" : "driver booked")
+  if (lane === "moving") {
+    const eta = date("eta")
+    if (eta && eta.tone !== "danger" && date("promise")) checks.push("app ETA inside the promise")
+  } else {
+    const slot = date("pickup_slot")
+    const ahead = (iso: string | null) => !!(iso && bundle.snapshotAt && !isBeforeSnapshot(iso, bundle.snapshotAt))
+    if (slot && slot.tone === "neutral" && ahead(slot.end ?? slot.start)) checks.push("pickup slot ahead")
+  }
+  const promise = date("promise")
+  if (promise && promise.label === "Delivery promise" && promise.tone !== "danger" && lane !== "moving"
+    && bundle.snapshotAt && !isBeforeSnapshot(promise.end ?? promise.start, bundle.snapshotAt)) checks.push("delivery promise still ahead")
+  return checks
 }

@@ -17,7 +17,7 @@ function capitalise(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
-/* ── Needs a person ─────────────────────────────────────────────────────── */
+/* ── Open points ─────────────────────────────────────────────────────── */
 
 export function AttentionPanel({ view }: { view: RecordView }) {
   const items = view.attention
@@ -26,7 +26,7 @@ export function AttentionPanel({ view }: { view: RecordView }) {
     <span>Nothing in the records is waiting on a person. <small>Checked: alerts, incidents, work items, conversations, agent proposals, claims, custody and a moving car's position. Not checked: proofs, documents and endpoint details beyond a booked car's pickup contact and access.</small></span>
   </div>
   return <div className="panel" id="attention">
-    <div className="panel-head">Needs a person <span className="num">{items.length}</span></div>
+    <div className="panel-head">Open points <span className="num">{items.length}</span></div>
     <ol className="panel-rows">{items.map((item) => <li className="panel-row" key={`${item.kind}-${item.recordId}`}>
       <Icon name={ATTENTION_ICON[item.kind]} className={`tone-${item.tone}`} />
       <div>

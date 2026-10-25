@@ -74,7 +74,11 @@ export function OrderFocus({ orderId, agentCase, problem, snapshotAt, onBack, on
     {detail && agentCase && <CaseView key={agentCase.id} summary={agentCase} snapshotAt={snapshotAt} onChange={onChange} onLoaded={onLoaded} onPlan={setPlan} title={title} timeline={timeline} after={record} />}
     {detail && !agentCase && problem && <Recovery orderId={orderId} problem={problem} title={title ?? orderId} zone={zoneForCity(header?.to.city)} onPlan={setPlan} onChange={onChange} timeline={timeline} record={record} />}
     {detail && !agentCase && !problem && <>
-      <CaseHead label="On track" tone="ok" title={title ?? orderId} issue={detail.view.story.headline} />
+      {/* A routine follow-up (an open thread, an owned alert) is named, so "On track" never hides it. */}
+      {detail.view.attention[0]
+        ? <CaseHead label="Followed up by the team" tone="accent" title={title ?? orderId}
+            issue={`${detail.view.attention[0].title}${detail.view.attention[0].owner ? `, with ${detail.view.attention[0].owner}` : ""}. Nothing for you to decide. ${detail.view.story.headline}`} />
+        : <CaseHead label="On track" tone="ok" title={title ?? orderId} issue={detail.view.story.headline} />}
       <div className="folds">
         {timeline}
         <SitePatternNotice orderId={orderId} />
