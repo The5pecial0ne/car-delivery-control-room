@@ -1383,3 +1383,187 @@ button, input, textarea, select { font-family: var(--font-body); }
   .sidebar .wordmark { flex: none; }
   .sidebar .wordmark span { display: none; }
 }
+
+/* ══ Palette ══════════════════════════════════════════════════════════════
+   One palette, five colours: Bahn red #df2531 (full, and at 65% and 45% over
+   black), white #ffffff and black #000000. Every other tone below is one of
+   those at a lower opacity, so nothing on screen comes from outside it.
+   - The workspace is white and calm; black text carries the hierarchy.
+   - The sidebar is black, the one dark surface, so the work sits in front.
+   - Red is kept for what needs a person: the primary action, the selected
+     page, and danger. Risk is the deeper red, so it reads quieter.
+   - There is no green or blue. "Confirmed" and "on track" are black with
+     their check icon and label; the agent's own work is grey and recedes.
+   Status never depends on colour alone: every state keeps its text or icon. */
+:root {
+  /* The palette, as supplied */
+  --pal-red: #df2531;
+  --pal-red-65: #911820;   /* #df2531 at 65% over black */
+  --pal-red-45: #641116;   /* #df2531 at 45% over black */
+  --pal-white: #ffffff;
+  --pal-black: #000000;
+
+  /* UI roles */
+  --ui-bg: var(--pal-white);                 /* app background, main workspace */
+  --ui-sidebar: var(--pal-black);            /* navigation */
+  --ui-sidebar-text: rgba(255, 255, 255, 0.72);
+  --ui-sidebar-muted: rgba(255, 255, 255, 0.5);
+  --ui-sidebar-hover: rgba(255, 255, 255, 0.08);
+  --ui-panel: #f7f7f7;                       /* raised or recessed panels: black at 3% */
+  --ui-panel-strong: #f0f0f0;                /* black at 6% */
+  --ui-text: var(--pal-black);               /* primary text */
+  --ui-text-2: #383838;                      /* secondary text: black at 78% */
+  --ui-text-muted: #5c5c5c;                  /* muted text: black at 64%, 6.6:1 on white */
+  --ui-text-subtle: #707070;                 /* labels and meta: black at 56%, 4.9:1 on white */
+  --ui-border: #e5e5e5;                      /* dividers: black at 10% */
+  --ui-border-soft: #f0f0f0;                 /* black at 6% */
+  --ui-border-strong: #c2c2c2;               /* control outlines: black at 24% */
+  --ui-accent: var(--pal-red);               /* primary action, selected page */
+  --ui-accent-hover: var(--pal-red-65);
+  --ui-selected: var(--pal-black);           /* selected rows, chosen priority */
+  --ui-danger: var(--pal-red);               /* critical marks and lines */
+  --ui-danger-text: var(--pal-red-65);       /* critical text, 8.9:1 on white */
+  --ui-danger-bg: #fcebec;                   /* red at 9% over white */
+  --ui-risk-text: var(--pal-red-45);         /* at risk: deeper and quieter than critical */
+  --ui-success: var(--pal-black);            /* confirmed / on track, always with a check */
+  --ui-success-bg: #f0f0f0;
+  --ui-agent: #737373;                       /* the agent's own work: black at 55% */
+  --ui-agent-text: #4a4a4a;                  /* black at 71% */
+  --ui-agent-bg: #f7f7f7;
+  --ui-focus: var(--pal-black);
+
+  /* The older names the rest of this file uses, pointed at the roles above. */
+  --birch: var(--ui-bg);
+  --canvas: var(--ui-panel);
+  --tray: var(--ui-panel);
+  --hair: var(--ui-border);
+  --hair-soft: var(--ui-border-soft);
+  --sand: var(--ui-border-strong);
+  --ink: var(--ui-text);
+  --brown: var(--ui-text-2);
+  --muted: var(--ui-text-muted);
+  --subtle: var(--ui-text-subtle);
+  --red: var(--ui-danger);
+  --red-ink: var(--ui-danger-text);
+  --red-bg: var(--ui-danger-bg);
+  --orange: var(--pal-red-65);
+  --orange-ink: var(--ui-risk-text);
+  --orange-text: var(--ui-risk-text);
+  --orange-bg: var(--ui-danger-bg);
+  --green: var(--ui-success);
+  --green-ink: var(--ui-success);
+  --green-bg: var(--ui-success-bg);
+  --agent: var(--ui-agent);
+  --agent-ink: var(--ui-agent-text);
+  --agent-bg: var(--ui-agent-bg);
+  --teal: var(--ui-agent);
+  --teal-ink: var(--ui-agent-text);
+  --teal-bg: var(--ui-agent-bg);
+  --bahn-red: var(--pal-red);
+
+  /* Order lanes, for the donut and lane dots. Greys for the early stages,
+     reds while the car is with us, black once it is delivered. Light and dark
+     alternate so neighbours stay apart, and the legend names every one. */
+  --lane-intake: #c2c2c2;                    /* black at 24% */
+  --lane-ready: #808080;                     /* black at 50% */
+  --lane-market: #f19da2;                    /* red at 45% over white */
+  --lane-booked: var(--pal-red-65);
+  --lane-moving: var(--pal-red);
+  --lane-delivered: var(--pal-black);
+  --lane-cancelled: #c2c2c2;                 /* hatched, out of play */
+  --shadow-card: 0 0 0 1px var(--ui-border), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-card-hover: 0 0 0 1px var(--ui-border-strong), 0 4px 14px rgba(0, 0, 0, 0.08);
+  background: var(--ui-bg);
+  color: var(--ui-text);
+}
+body { background: var(--ui-bg); }
+:focus-visible { outline-color: var(--ui-focus); }
+::selection { background: var(--ui-danger-bg); color: var(--ui-text); }
+
+/* Sidebar: the one dark surface. Red icons, the current page a red pill. */
+.sidebar { background: var(--ui-sidebar); border-right-color: var(--ui-sidebar); color: var(--ui-sidebar-text); }
+.sidebar .wordmark { color: var(--pal-white); }
+.sidebar .nav-label, .sidebar .sidebar-foot { color: var(--ui-sidebar-muted); }
+.sidebar .nav-link { color: var(--ui-sidebar-text); }
+.sidebar .nav-link .icon { color: var(--pal-red); }
+.sidebar .nav-link:hover { background: var(--ui-sidebar-hover); color: var(--pal-white); }
+.sidebar .nav-link.active, .sidebar .nav-link.active:hover { background: var(--pal-red); color: var(--pal-white); box-shadow: none; }
+.sidebar .nav-link.active .icon { color: var(--pal-white); }
+.sidebar .nav-link:focus-visible, .sidebar .reading-toggle:focus-visible, .sidebar .wordmark:focus-visible { outline: 2px solid var(--pal-white); outline-offset: 2px; }
+.sidebar .reading-toggle { color: var(--ui-sidebar-text); }
+.sidebar .reading-toggle:hover { color: var(--pal-white); }
+.sidebar .reading-switch { background: rgba(255, 255, 255, 0.28); }
+.sidebar .reading-switch::after { background: var(--pal-white); }
+.sidebar .reading-toggle.on .reading-switch { background: var(--pal-red); }
+@media (max-width: 900px) { .sidebar { border-bottom-color: var(--ui-sidebar); } }
+
+/* Buttons keep their pill shape. Primary is red and rare; secondary is an
+   outlined pill; quiet is text. Confirming a rejection is the deep red. */
+.btn { border-color: var(--ui-border-strong); background: var(--ui-bg); color: var(--ui-text); }
+.btn:hover:not(:disabled) { border-color: var(--ui-text); }
+.btn.primary { background: var(--ui-accent); border-color: var(--ui-accent); color: var(--pal-white); }
+.btn.primary:hover:not(:disabled) { background: var(--ui-accent-hover); border-color: var(--ui-accent-hover); }
+.btn.quiet { border-color: transparent; background: transparent; }
+.btn.quiet:hover:not(:disabled) { border-color: transparent; background: var(--ui-panel-strong); }
+.btn.danger { background: var(--pal-red-65); border-color: var(--pal-red-65); color: var(--pal-white); }
+.btn.danger:hover:not(:disabled) { background: var(--pal-red-45); border-color: var(--pal-red-45); }
+.btn.quiet.danger { background: transparent; border-color: transparent; color: var(--pal-red-65); }
+.btn.quiet.danger:hover:not(:disabled) { background: var(--ui-danger-bg); color: var(--pal-red-65); }
+.btn:disabled { border-color: var(--ui-border); background: var(--ui-panel); color: var(--ui-text-subtle); opacity: 1; }
+.btn.primary:disabled { border-color: var(--ui-border-strong); background: var(--ui-panel-strong); color: var(--ui-text-subtle); }
+
+/* Selection in the workspace is black, so red stays for the decision. */
+.priority-switch button.on, .priority-switch button.on:hover { background: var(--ui-selected); color: var(--pal-white); }
+.toggle[aria-pressed="true"] { background: var(--ui-selected); border-color: var(--ui-selected); color: var(--pal-white); }
+.queue-card.active { background: var(--ui-panel); box-shadow: inset 0 0 0 1.5px var(--ui-selected); }
+.queue-card.active::after { background: var(--ui-selected); }
+.watch-card.active { background: var(--ui-bg); box-shadow: inset 2px 0 0 var(--ui-selected); }
+
+/* Depth from tone and spacing, not lines on every side. */
+.control-watch, .control-watch .control-col-title { background: var(--ui-panel); }
+.priority { background: var(--ui-panel); border-color: var(--ui-border); }
+.best-option { background: var(--ui-bg); border-color: var(--ui-border); border-left-color: var(--ui-accent); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.05); }
+.best-kicker .icon { color: var(--ui-accent); }
+.option.is-best { background: var(--ui-panel); }
+.case-deadline { background: var(--ui-danger-bg); border-left-color: var(--ui-danger); }
+.case-deadline-main b, .case-deadline-main .icon { color: var(--pal-red-65); }
+.case-deadline:is(.tone-ok, .tone-subtle, .tone-neutral) { background: var(--ui-panel); border-left-color: var(--ui-border-strong); }
+.case-state-main.tone-ok { color: var(--ui-success); }
+.decision { box-shadow: 0 0 0 1px var(--ui-border), 0 6px 20px rgba(0, 0, 0, 0.05); }
+.segmented button.on { box-shadow: 0 0 0 1px var(--ui-border), 0 1px 2px rgba(0, 0, 0, 0.06); }
+.planb-agent, .planb-checks, .planb-more { border-top-color: var(--ui-border); }
+.planb-check { border-bottom-color: var(--ui-border-soft); }
+.planb-check.is-found .planb-check-state { color: var(--ui-text); }
+.planb-boundary .icon { color: var(--ui-text); }
+.key-question-answer { border-top-color: var(--ui-border); }
+.fold-agent > summary .fold-summary { color: var(--ui-agent-text); }
+.fold > summary:hover { background: var(--ui-panel); }
+.cover-pill, .cover-info { background: rgba(255, 255, 255, 0.85); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+
+/* Inputs: white fields with a black edge when in use. */
+.search, .composer input, .decision-draft textarea, .decision-note textarea { border-color: var(--ui-border-strong); background: var(--ui-bg); }
+.search:focus-within, .composer input:focus, .decision-draft textarea:focus, .decision-note textarea:focus { border-color: var(--ui-text); background: var(--ui-bg); }
+.composer input:disabled { background: var(--ui-panel); color: var(--ui-text-subtle); }
+
+/* Journey: black for what happened, red where it went wrong, grey for the agent. */
+.hj-card { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08); }
+
+.dot.lane-intake { background: var(--lane-intake); }
+.dot.lane-ready { background: var(--lane-ready); }
+.dot.lane-market, .lane-market .lane-head h2::before { background: var(--lane-market); }
+.dot.lane-booked, .lane-booked .lane-head h2::before { background: var(--lane-booked); }
+.dot.lane-moving, .lane-moving .lane-head h2::before { background: var(--lane-moving); }
+.dot.lane-delivered, .lane-delivered .lane-head h2::before { background: var(--lane-delivered); }
+.dot.lane-cancelled, .lane-cancelled .lane-head h2::before { background: var(--lane-cancelled); }
+
+/* Popovers and tooltips. */
+.donut-tip { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1); }
+.donut { --donut-hatch: #c2c2c2; --donut-hatch-bg: #f0f0f0; }
+.donut-swatch.is-hatched { background: repeating-linear-gradient(45deg, #c2c2c2 0 2px, #f0f0f0 2px 4px); }
+/* The queue: critical is a deep red edge, not critical a grey dashed one, so
+   forty rows of bright red do not drown out the one being decided. */
+.queue-card.sev-danger::before { background: var(--pal-red-65); }
+.queue-card.sev-warn::before { background: repeating-linear-gradient(var(--ui-border-strong) 0 4px, transparent 4px 7px); }
+/* A fold is a grid item: without this, an opened journey line (which scrolls
+   sideways on its own) would widen the whole column. */
+.folds > * { min-width: 0; }
