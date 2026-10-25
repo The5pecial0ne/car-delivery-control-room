@@ -14,11 +14,12 @@ import { AppFrame } from "../components/app-frame"
 import { DonutChart, type Segment } from "../components/donut-chart"
 import { Icon } from "../components/icons"
 
-// One colour per lane, in pipeline order. Checked with the data-viz palette
-// validator: neighbours stay apart for colour-blind readers, and Cancelled is
-// a hatched grey on purpose, because it is out of play.
+// One colour per lane, in pipeline order, all from the palette tokens in
+// globals.css (--lane-*). Light and dark alternate so neighbours stay apart,
+// the legend names every lane, and Cancelled is hatched because it is out of play.
 const LANE_COLOR: Record<string, string> = {
-  intake: "#8a78dc", ready: "#d8703a", market: "#a34c72", booked: "#5f93d8", moving: "#2d4f97", delivered: "#1f9a63", cancelled: "#b3ada2",
+  intake: "var(--lane-intake)", ready: "var(--lane-ready)", market: "var(--lane-market)", booked: "var(--lane-booked)",
+  moving: "var(--lane-moving)", delivered: "var(--lane-delivered)", cancelled: "var(--lane-cancelled)",
 }
 const STORE = "board-lanes"
 

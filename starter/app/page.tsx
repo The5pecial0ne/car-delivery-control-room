@@ -27,6 +27,25 @@ export default function ControlRoom() {
   const [selected, setSelected] = useState<string | null>(null)
   const [showList, setShowList] = useState(true)
   const [starting, setStarting] = useState<string | null>(null)
+  // The On track panel can fold to a thin rail. It starts open every visit, and
+  // its scroll position is kept across a fold, so reopening shows it as it was.
+  const [watchOpen, setWatchOpen] = useState(true)
+  const watchRef = useRef<HTMLElement>(null)
+  const watchScroll = useRef(0)
+  const toggleWatch = () => {
+    if (watchOpen) watchScroll.current = watchRef.current?.scrollTop ?? 0
+    setWatchOpen((open) => !open)
+  }
+  useEffect(() => {
+    const panel = watchRef.current
+    if (!watchOpen || !panel) return
+    // Restore now, and again once the column has finished widening, because
+    // the text rewraps while it grows and the browser nudges the scroll.
+    const restore = () => { panel.scrollTop = watchScroll.current }
+    restore()
+    const timer = setTimeout(restore, 260)
+    return () => clearTimeout(timer)
+  }, [watchOpen])
   // Countdowns on the cards tick with the real clock.
   const [wall, setWall] = useState(() => Date.now())
   useEffect(() => { const timer = setInterval(() => setWall(Date.now()), 20_000); return () => clearInterval(timer) }, [])
@@ -113,7 +132,7 @@ export default function ControlRoom() {
   const lanes = [...new Set(monitored.map((card) => card.displayLane))]
   const loading = !overview && !error
 
-  return <AppFrame section="desk" snapshotAt={snapshotAt}><main className={`control${showList ? "" : " reading"}`}>
+  return <AppFrame section="desk" snapshotAt={snapshotAt}><main className={`control${showList ? "" : " reading"}${watchOpen ? "" : " watch-folded"}`}>
     <header className="control-head">
       <h1 className="sr-only">Control room</h1>
       <p className="control-sum">{overview
@@ -154,16 +173,25 @@ export default function ControlRoom() {
         : <p className="empty desk-read-empty">{overview ? "Choose an order to see its timeline." : "Loading…"}</p>}
     </section>
 
-    <aside className="control-watch" aria-labelledby="watch-title">
-      <h2 className="control-col-title" id="watch-title">On track<span className="num">{overview ? monitored.length : ""}</span><small>Monitored, nothing to do</small></h2>
-      {loading && <ul className="watch-list" aria-busy="true">{[0, 1, 2, 3].map((index) => <li className="skeleton watch-skeleton" key={index} />)}</ul>}
-      {overview && monitored.length === 0 && <p className="lane-empty">{search ? `No monitored orders match “${search}”.` : "No orders are being monitored right now."}</p>}
-      {lanes.map((lane) => <div className="watch-group" key={lane}>
-        <h3 className="watch-group-title">{laneLabel(lane)}<span className="num">{monitored.filter((card) => card.displayLane === lane).length}</span></h3>
-        <ul className="watch-list">{monitored.filter((card) => card.displayLane === lane).map((card) => <li key={card.id}>
-          <WatchCard card={card} snapshotAt={snapshotAt} active={card.id === selected} onSelect={choose} />
-        </li>)}</ul>
-      </div>)}
+    <aside className="control-watch" ref={watchRef} aria-labelledby="watch-title">
+      <h2 className="control-col-title" id="watch-title">
+        <button type="button" className="watch-toggle" onClick={toggleWatch} aria-expanded={watchOpen} aria-controls="watch-body"
+          aria-label={watchOpen ? "Collapse On track" : "Show On track"} title={watchOpen ? "Collapse On track" : "Show On track"}>
+          <Icon name="chevron" size={13} />
+        </button>
+        <span className="watch-title-text">On track</span><span className="num">{overview ? monitored.length : ""}</span><small>Monitored, nothing to do</small>
+      </h2>
+      {/* Folded, the list stays mounted but hidden, so nothing in it resets. */}
+      <div className="control-watch-body" id="watch-body" hidden={!watchOpen}>
+        {loading && <ul className="watch-list" aria-busy="true">{[0, 1, 2, 3].map((index) => <li className="skeleton watch-skeleton" key={index} />)}</ul>}
+        {overview && monitored.length === 0 && <p className="lane-empty">{search ? `No monitored orders match “${search}”.` : "No orders are being monitored right now."}</p>}
+        {lanes.map((lane) => <div className="watch-group" key={lane}>
+          <h3 className="watch-group-title">{laneLabel(lane)}<span className="num">{monitored.filter((card) => card.displayLane === lane).length}</span></h3>
+          <ul className="watch-list">{monitored.filter((card) => card.displayLane === lane).map((card) => <li key={card.id}>
+            <WatchCard card={card} snapshotAt={snapshotAt} active={card.id === selected} onSelect={choose} />
+          </li>)}</ul>
+        </div>)}
+      </div>
     </aside>
   </main></AppFrame>
 }
