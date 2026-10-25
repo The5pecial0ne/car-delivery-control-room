@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { buildBoardCard } from "@/lib/present/board"
 import { LANE_ORDER } from "@/lib/present/labels"
 import { loadBoardBundles } from "@/lib/present/load"
+import { needsPerson } from "@/lib/present/queue"
 import type { BoardCard, Overview, Tone } from "@/lib/present/types"
 
 export const runtime = "nodejs"
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
   const { snapshotAt, bundles } = await loadBoardBundles()
   const all = bundles.map(buildBoardCard)
   const counts = Object.fromEntries(LANE_ORDER.map((lane) => [lane, all.filter((card) => card.displayLane === lane).length]))
-  const attentionCounts = Object.fromEntries(LANE_ORDER.map((lane) => [lane, all.filter((card) => card.displayLane === lane && card.attention.length > 0).length]))
+  const attentionCounts = Object.fromEntries(LANE_ORDER.map((lane) => [lane, all.filter((card) => card.displayLane === lane && needsPerson(card)).length]))
   const matches = query ? all.filter((card) => [
     card.reference, card.customer, card.vehicle, card.origin, card.destination, card.plate ?? "",
   ].some((field) => field.toLowerCase().includes(query))) : all

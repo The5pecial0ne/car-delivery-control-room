@@ -60,7 +60,8 @@ export function usePlanB(orderId: string, priority: Priority, onPlan?: (plan: Ra
   return { ...result, refresh: () => setRound((value) => value + 1) }
 }
 
-export function PrioritySwitch({ priority, onChange }: { priority: Priority; onChange: (value: Priority) => void }) {
+/** With no priority chosen yet (null), nothing is pressed and the agent's own pick leads. */
+export function PrioritySwitch({ priority, onChange }: { priority: Priority | null; onChange: (value: Priority) => void }) {
   const current = PRIORITIES.find((item) => item.key === priority)
   return <div className="priority">
     <div className="priority-row">
@@ -71,7 +72,8 @@ export function PrioritySwitch({ priority, onChange }: { priority: Priority; onC
         </button>)}
       </div>
     </div>
-    {current && <p className="priority-trade"><b>{current.label}:</b> {current.tradeOff}</p>}
+    {current ? <p className="priority-trade"><b>{current.label}:</b> {current.tradeOff}</p>
+      : <p className="priority-trade">Showing the agent's own pick. Choose one to rank every option by it.</p>}
   </div>
 }
 
@@ -112,7 +114,7 @@ export function ImpactLine({ row }: { row: Row }) {
     row.arrives ? /^(arrives|delivers|delivery|no |on |late|stays)/i.test(row.arrives) ? row.arrives : `Delivery ${row.arrives}` : "No new arrival time",
     cost,
     row.certainty ? CERTAINTY_LABEL[row.certainty] : null,
-    row.approval ? "Human approval required" : "The agent may do this alone",
+    row.approval ? "Needs your OK" : "The agent may do this alone",
   ].filter(Boolean)
   return <p className="impact-line">{parts.map((part, index) => <span key={index}>{part}</span>)}</p>
 }
@@ -120,7 +122,11 @@ export function ImpactLine({ row }: { row: Row }) {
 /** First sentence of a longer text, so a card can lead with the concrete step. */
 export const firstSentence = (text: string, length = 170) => {
   const sentence = text.split(/(?<=[.!?])\s/)[0] ?? text
-  return sentence.length > length ? `${sentence.slice(0, length - 1).trimEnd()}…` : sentence
+  if (sentence.length <= length) return sentence
+  // Cut at a word, never through one.
+  const cut = sentence.slice(0, length - 1)
+  const space = cut.lastIndexOf(" ")
+  return `${(space > length / 2 ? cut.slice(0, space) : cut).replace(/[\s,;:·–-]+$/, "")}…`
 }
 
 /** The recommended option for the chosen priority: one concrete step, one impact line, the actions. */
@@ -140,13 +146,13 @@ export function BestOption({ row, children, note }: { row: Row; children: React.
  * nothing the card leaves out is more than a click away.
  */
 export function CompareOptions({ rows, priority, action, extra }: {
-  rows: Row[]; priority: Priority; action: (row: Row) => React.ReactNode; extra?: (row: Row) => React.ReactNode
+  rows: Row[]; priority: Priority | null; action: (row: Row) => React.ReactNode; extra?: (row: Row) => React.ReactNode
 }) {
   const others = rows.length - 1
   if (others < 1) return null
   return <details className="fold other-options">
     <summary>
-      <span className="fold-summary">{others} other option{others === 1 ? "" : "s"}, ranked for {priorityLabel(priority).toLowerCase()}</span>
+      <span className="fold-summary">{others} other option{others === 1 ? "" : "s"}{priority ? `, ranked for ${priorityLabel(priority).toLowerCase()}` : ""}</span>
       <span className="fold-action"><span className="fold-show">Compare options</span><span className="fold-hide">Hide</span><Icon name="chevron" size={12} /></span>
     </summary>
     <ol className="options">{rows.map((row, at) => <li key={row.key} className={`option${at === 0 ? " is-best" : ""}`}>
@@ -218,7 +224,8 @@ export function PlanBPanel({ state, onRefresh, agentPlan, onSwitch, busy, zone }
 }) {
   const plan = state.plan
   const title = state.state === "loading" ? "Preparing Plan B…" : state.state === "error" ? "Plan B could not be prepared"
-    : state.state === "insufficient" ? "No safe Plan B yet" : "Plan B is ready"
+    : state.state === "insufficient" ? plan?.checks.some((check) => check.key === "driver" && check.status === "not_needed") ? "No Plan B needed" : "No safe Plan B yet"
+    : "Plan B is ready"
   const found = plan?.checks.filter((check) => check.status === "found" && check.key !== "next" && check.key !== "promise").map((check) => check.label.toLowerCase()) ?? []
   const alternatives = plan ? plan.options.filter((option) => option.action !== "hold_and_wait").length : 0
   const line = state.state === "loading" ? "Looking up later sailings, backup drivers, hotels and the delivery promise."

@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { laneLabel } from "@/lib/present/labels"
-import { latestCases, needsAttention, splitQueue } from "@/lib/present/queue"
+import { followUp, latestCases, needsAttention, splitQueue } from "@/lib/present/queue"
 import type { BoardCard } from "@/lib/present/types"
 import type { Overview } from "@/lib/present/types"
 import { AppFrame } from "./components/app-frame"
@@ -15,6 +15,7 @@ import type { CaseSummary } from "./components/case-view"
 import { Icon } from "./components/icons"
 import { OrderFocus } from "./components/order-focus"
 import { cardDeadline, QueueCard, WatchCard } from "./components/queue-cards"
+import { WhoDoesWhat } from "./components/who-does-what"
 
 type Demo = { orderId: string; title: string; open: boolean }
 type Listing = { cases: CaseSummary[]; demos: Demo[]; snapshotAt: string | null }
@@ -128,6 +129,7 @@ export default function ControlRoom() {
     }
   }
 
+  const followed = monitored.filter((card) => followUp(card)).length
   const waiting = [...cases.values()].filter((item) => item.status === "needs_person").length
   const lanes = [...new Set(monitored.map((card) => card.displayLane))]
   const loading = !overview && !error
@@ -136,7 +138,7 @@ export default function ControlRoom() {
     <header className="control-head">
       <h1 className="sr-only">Control room</h1>
       <p className="control-sum">{overview
-        ? <><span className="sum-alert"><b className="num">{attention.length}</b> need attention</span>{waiting ? <span><b className="num">{waiting}</b> waiting for your decision</span> : null}<span><b className="num">{monitored.length}</b> on track or done</span>{search ? <span>matching “{search}”</span> : null}</>
+        ? <><span className="sum-alert"><b className="num">{attention.length}</b> need attention</span>{waiting ? <span><b className="num">{waiting}</b> waiting for your decision</span> : null}<span><b className="num">{monitored.length}</b> on track or done{followed ? `, ${followed} of them followed up by the team` : ""}</span>{search ? <span>matching “{search}”</span> : null}</>
         : "Loading the snapshot"}</p>
       <label className="search">
         <span className="sr-only">Search orders</span>
@@ -157,6 +159,7 @@ export default function ControlRoom() {
       {attention.length > 0 && <ul className="queue-list">{attention.map((card) => <li key={card.id}>
         <QueueCard card={card} agentCase={cases.get(card.id)} snapshotAt={snapshotAt} wall={wall} active={card.id === selected} onSelect={choose} />
       </li>)}</ul>}
+      <div className="desk-roles"><WhoDoesWhat /></div>
       {listing && listing.demos.length > 0 && <footer className="desk-demos">
         <p>Start a demo case</p>
         <ul>{listing.demos.map((demo) => <li key={demo.orderId}>
@@ -179,7 +182,7 @@ export default function ControlRoom() {
           aria-label={watchOpen ? "Collapse On track" : "Show On track"} title={watchOpen ? "Collapse On track" : "Show On track"}>
           <Icon name="chevron" size={13} />
         </button>
-        <span className="watch-title-text">On track</span><span className="num">{overview ? monitored.length : ""}</span><small>Monitored, nothing to do</small>
+        <span className="watch-title-text">On track</span><span className="num">{overview ? monitored.length : ""}</span><small>Checked, nothing to do</small>
       </h2>
       {/* Folded, the list stays mounted but hidden, so nothing in it resets. */}
       <div className="control-watch-body" id="watch-body" hidden={!watchOpen}>
@@ -188,7 +191,7 @@ export default function ControlRoom() {
         {lanes.map((lane) => <div className="watch-group" key={lane}>
           <h3 className="watch-group-title">{laneLabel(lane)}<span className="num">{monitored.filter((card) => card.displayLane === lane).length}</span></h3>
           <ul className="watch-list">{monitored.filter((card) => card.displayLane === lane).map((card) => <li key={card.id}>
-            <WatchCard card={card} snapshotAt={snapshotAt} active={card.id === selected} onSelect={choose} />
+            <WatchCard card={card} agentCase={cases.get(card.id)} snapshotAt={snapshotAt} active={card.id === selected} onSelect={choose} />
           </li>)}</ul>
         </div>)}
       </div>

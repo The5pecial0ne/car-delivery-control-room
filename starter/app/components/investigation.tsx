@@ -4,10 +4,10 @@
 // what is still unknown, and what the agent asked. It reads the agent's latest
 // findings, which it has to write down before it may plan anything.
 
-import { Fragment } from "react"
+import { createContext, Fragment, useContext } from "react"
 import { cityOfZone, clockIn } from "@/lib/agent/clock"
 import { parseSource } from "@/lib/agent/labels"
-import { fmtClock } from "@/lib/present/time"
+import { fmtClock, fmtDateTime } from "@/lib/present/time"
 import { Icon } from "./icons"
 
 export type StepLike = { id: string; actor: string; kind: string; body: string; data: Record<string, unknown>; createdAt: string }
@@ -48,7 +48,21 @@ const STATUS: { key: FactStatus; label: string; note: string }[] = [
 ]
 const EVENT_LABEL: Record<Event["status"], string> = { planned: "Planned", reported: "Reported", confirmed: "Confirmed", projected: "Projected", missed: "Missed" }
 
+/** Who said each cited record and when, as the case API resolved them. */
+export type SourceInfo = { who: string; at: string | null }
+export const SourcesContext = createContext<Record<string, SourceInfo>>({})
+
+/** "Customer wrote, 19 Oct 12:59" for a record the case cites, or its plain name when the record has no who or when. */
+export function useSourceLabel() {
+  const known = useContext(SourcesContext)
+  return (ref: string) => {
+    const info = known[ref]
+    return info ? (info.at ? `${info.who}, ${fmtDateTime(info.at, null, false)}` : info.who) : parseSource(ref).label
+  }
+}
+
 export function SourceChips({ sources, byId }: { sources?: string[]; byId: Map<string, StepLike> }) {
+  const labelOf = useSourceLabel()
   if (!sources?.length) return null
   return <span className="fact-sources">{sources.map((ref) => {
     const source = parseSource(ref)
@@ -56,7 +70,7 @@ export function SourceChips({ sources, byId }: { sources?: string[]; byId: Map<s
     const who = step?.actor === "driver" ? "Driver said" : step?.actor === "site" ? "Site said" : "Asked"
     return step
       ? <a key={ref} className="source" href={`#${step.id}`} title={ref}>{who}, {fmtClock(step.createdAt)}</a>
-      : <span key={ref} className={`source${source.table === "simulated" ? " simulated" : ""}`} title={ref}>{source.label}</span>
+      : <span key={ref} className={`source${source.table === "simulated" ? " simulated" : ""}`} title={ref}>{labelOf(ref)}</span>
   })}</span>
 }
 
