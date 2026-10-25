@@ -1567,3 +1567,39 @@ body { background: var(--ui-bg); }
 /* A fold is a grid item: without this, an opened journey line (which scrolls
    sideways on its own) would widen the whole column. */
 .folds > * { min-width: 0; }
+
+/* ══ Folding the On track panel ══
+   A small pill at the head of the panel folds it to a thin rail; the case
+   workspace takes the room. The rail keeps the pill and the count, so the
+   panel is one click from coming back. On narrower desks, where the panel sits
+   under the queue, it folds to its heading instead. */
+.control { transition: grid-template-columns 0.2s ease; }
+.control.watch-folded { grid-template-columns: 320px minmax(0, 1fr) 52px; }
+.watch-toggle { display: inline-flex; flex: none; align-items: center; justify-content: center; align-self: center; width: 30px; height: 22px; padding: 0; border: 1px solid var(--ui-border-strong); border-radius: var(--pill); background: var(--ui-bg); color: var(--ui-text); }
+.watch-toggle:hover { border-color: var(--ui-text); }
+.watch-toggle:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
+.watch-toggle .icon { transition: transform 0.2s ease; }
+.watch-title-text { white-space: nowrap; }
+.control-watch .control-col-title small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.control.watch-folded .watch-toggle .icon { transform: rotate(180deg); }
+.control-watch-body:not([hidden]) { animation: watch-in 0.2s ease; }
+@keyframes watch-in { from { opacity: 0; } }
+/* The rail: the pill on top, the count under it, nothing else. */
+.control.watch-folded .control-watch { overflow: hidden; }
+.control.watch-folded .control-watch .control-col-title { flex-direction: column; align-items: center; gap: 6px; padding: 14px 0 10px; border-bottom: 0; }
+.control.watch-folded .control-watch .control-col-title :is(.watch-title-text, small) { display: none; }
+.control.watch-folded .control-watch .control-col-title .num { font-size: 12px; }
+@media (max-width: 1380px) {
+  .control.watch-folded { grid-template-columns: 300px minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; }
+  .control.watch-folded .control-watch .control-col-title { flex-direction: row; align-items: baseline; gap: 8px; padding: 14px 18px 10px; }
+  .control.watch-folded .control-watch .control-col-title :is(.watch-title-text, small) { display: inline; }
+  .watch-toggle .icon { transform: rotate(90deg); }
+  .control.watch-folded .watch-toggle .icon { transform: rotate(-90deg); }
+}
+@media (max-width: 900px) {
+  .control.watch-folded .control-watch .control-col-title { padding: 12px 16px 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .control, .watch-toggle .icon { transition: none; }
+  .control-watch-body:not([hidden]) { animation: none; }
+}
