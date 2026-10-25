@@ -1595,6 +1595,9 @@ body { background: var(--ui-bg); }
 .control.watch-folded .control-watch .control-col-title { flex-direction: column; align-items: center; gap: 6px; padding: 14px 0 10px; border-bottom: 0; }
 .control.watch-folded .control-watch .control-col-title :is(.watch-title-text, small) { display: none; }
 .control.watch-folded .control-watch .control-col-title .num { font-size: 12px; }
+/* With the panel folded, the case grows into the room it leaves instead of
+   stopping at its usual width and leaving a gap on the right. */
+.control.watch-folded .focus { max-width: none; }
 @media (max-width: 1380px) {
   .control.watch-folded { grid-template-columns: 300px minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; }
   .control.watch-folded .control-watch .control-col-title { flex-direction: row; align-items: baseline; gap: 8px; padding: 14px 18px 10px; }
