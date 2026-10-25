@@ -9,7 +9,7 @@ It is two things:
 
 All the data is made up by Bahn. No real people, cars, companies or messages.
 
-**Demo video (2:59):** _link to be added_
+**Demo video (2:57):** _link to be added_
 
 ## How the agent works
 
