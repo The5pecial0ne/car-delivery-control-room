@@ -14,7 +14,7 @@ import type { Priority } from "@/lib/agent/priority"
 import { Deadlines, nextDeadline, useCaseNow } from "./decision-extras"
 import { agentRows, BestOption, CompareOptions, firstSentence, handOver, PlanBPanel, PreparedOptions, PrioritySwitch, usePlanB, usePriority, type Row as OptionRow } from "./recovery"
 import { SitePatternNotice } from "./site-pattern"
-import { evidenceCount, findingsOf, Investigation } from "./investigation"
+import { evidenceCount, findingsOf, Investigation, SourcesContext, useSourceLabel, type SourceInfo } from "./investigation"
 import { Disclosure } from "./disclosure"
 import { Icon } from "./icons"
 
@@ -84,7 +84,7 @@ async function post(url: string, body: unknown) {
   if (!response.ok) throw new Error((await response.json().catch(() => ({})) as { error?: string }).error ?? "Something went wrong")
 }
 
-export type CaseData = { case: CaseSummary; steps: Step[] }
+export type CaseData = { case: CaseSummary; steps: Step[]; sources?: Record<string, SourceInfo> }
 
 export function CaseView({ summary, snapshotAt, onChange, onLoaded, onPlan, title, timeline, after }: {
   summary: CaseSummary; snapshotAt: string | null; onChange: () => void
@@ -98,6 +98,7 @@ export function CaseView({ summary, snapshotAt, onChange, onLoaded, onPlan, titl
 }) {
   const [steps, setSteps] = useState<Step[] | null>(null)
   const [detail, setDetail] = useState<CaseSummary>(summary)
+  const [sources, setSources] = useState<Record<string, SourceInfo>>({})
   const [error, setError] = useState("")
   const loaded = useRef(onLoaded)
   useEffect(() => { loaded.current = onLoaded }, [onLoaded])
@@ -108,6 +109,7 @@ export function CaseView({ summary, snapshotAt, onChange, onLoaded, onPlan, titl
     const data = await response.json() as CaseData
     setDetail((old) => ({ ...old, ...data.case }))
     setSteps(data.steps)
+    setSources(data.sources ?? {})
     setError("")
     // The order timeline above the case follows the same steps.
     loaded.current?.(data)
@@ -140,6 +142,7 @@ export function CaseView({ summary, snapshotAt, onChange, onLoaded, onPlan, titl
   const history = useMemo(() => findingsOf(steps ?? []), [steps])
   const byId = useMemo(() => new Map((steps ?? []).map((step) => [step.id, step])), [steps])
   const [priority, setPriority] = usePriority()
+  const [ranked, setRanked] = useState(false)
   const planB = usePlanB(detail.orderId, priority, onPlan)
   // Each time the agent updates what it knows, Plan B is looked up again.
   const { refresh: refreshPlan } = planB
@@ -154,7 +157,7 @@ export function CaseView({ summary, snapshotAt, onChange, onLoaded, onPlan, titl
   const route = order ? [order.car, order.from && order.to ? `${order.from} → ${order.to}` : null].filter(Boolean).join(" · ") : ""
   const label = decision?.urgency ? URGENT_LABEL[decision.urgency] ?? status.label : status.label
 
-  return <article className="case">
+  return <SourcesContext.Provider value={sources}><article className="case">
     <CaseHead label={label} tone={decision?.urgency === "now" ? "danger" : status.tone} live={live}
       title={title || route || (detail.headline ?? detail.trigger)}
       issue={detail.status === "failed" ? detail.headline ?? detail.trigger : issueLine(detail.headline ?? detail.trigger)}
@@ -165,8 +168,9 @@ export function CaseView({ summary, snapshotAt, onChange, onLoaded, onPlan, titl
 
     {detail.status === "resolved" ? <p className="case-working">The agent handled this without you. Nothing to decide. What it did is in the agent trace below.</p>
       : <section className="case-decide" id="decide" aria-label="Decision">
-      <PrioritySwitch priority={priority} onChange={setPriority} />
-      {decision && <DecisionPanel decision={decision} zone={zone} priority={priority} onAct={(body) => act(`/api/cases/${detail.id}/decision`, body)} />}
+      {/* The agent's own pick leads until the person picks a priority on this case, as in "the agent shows one decision". */}
+      <PrioritySwitch priority={decision && !ranked ? null : priority} onChange={(value) => { setRanked(true); setPriority(value) }} />
+      {decision && <DecisionPanel decision={decision} zone={zone} priority={priority} ranked={ranked} onAct={(body) => act(`/api/cases/${detail.id}/decision`, body)} />}
       {!decision && planB.plan && <PreparedOptions plan={planB.plan} priority={priority}
         busy={live ? "The agent is still investigating" : false}
         onHandOver={live ? null : async (option) => {
@@ -202,17 +206,21 @@ export function CaseView({ summary, snapshotAt, onChange, onLoaded, onPlan, titl
     </div>
 
     <Composer disabled={live} onSend={(text) => act(`/api/cases/${detail.id}/message`, { text })} />
-  </article>
+  </article></SourcesContext.Provider>
 }
 
-function DecisionPanel({ decision, zone, priority, onAct }: { decision: Decision; zone: string; priority: Priority; onAct: (body: { choice: string; note?: string }) => Promise<void> }) {
+function DecisionPanel({ decision, zone, priority, ranked, onAct }: { decision: Decision; zone: string; priority: Priority; ranked: boolean; onAct: (body: { choice: string; note?: string }) => Promise<void> }) {
   const recommendation = decision.recommendation ?? {}
   const [draft, setDraft] = useState(recommendation.customer_message_draft ?? "")
   const [mode, setMode] = useState<"idle" | "done" | "change" | "reject">("idle")
   const personLed = isPersonLed(recommendation.action)
   const [note, setNote] = useState("")
   const [busy, setBusy] = useState(false)
-  const rows = useMemo(() => agentRows(decision, priority, zone), [decision, priority, zone])
+  const rows = useMemo(() => {
+    const all = agentRows(decision, priority, zone)
+    // Before a priority is chosen, the agent's pick comes first and the rest keep their ranked order.
+    return ranked ? all : [...all.filter((row) => row.tag === "Agent's pick"), ...all.filter((row) => row.tag !== "Agent's pick")]
+  }, [decision, priority, zone, ranked])
 
   const run = async (body: { choice: string; note?: string }) => {
     setBusy(true)
@@ -227,7 +235,7 @@ function DecisionPanel({ decision, zone, priority, onAct }: { decision: Decision
   // themselves first asks how it went). Any other option goes back to the
   // agent as "do this instead", exactly as before, so nothing runs without
   // the same checks.
-  const choose = (row: OptionRow) => row.option && run({ choice: "change", note: `${row.tag === "Plan B" ? "Switch to plan B" : "Do this instead"} (what matters most today: ${priority}): ${row.option.summary ?? row.title}` })
+  const choose = (row: OptionRow) => row.option && run({ choice: "change", note: `${row.tag === "Plan B" ? "Switch to plan B" : "Do this instead"}${ranked ? ` (what matters most today: ${priority})` : ""}: ${row.option.summary ?? row.title}` })
   const approveRow = (row: OptionRow) => row.tag === "Agent's pick" ? (personLed ? setMode("done") : approve()) : choose(row)
   const best = rows[0] ?? { key: "pick", tag: "Agent's pick", title: actionLabel(recommendation.action), summary: recommendation.summary ?? null, why: "", arrives: null, cost: null, costBasis: null, certainty: null, risk: null, approval: true }
   const bestIsPick = best.tag === "Agent's pick"
@@ -262,7 +270,7 @@ function DecisionPanel({ decision, zone, priority, onAct }: { decision: Decision
       </div>
     </form>}
 
-    {mode === "idle" && <CompareOptions rows={rows} priority={priority}
+    {mode === "idle" && <CompareOptions rows={rows} priority={ranked ? priority : null}
       action={(row) => <button type="button" className={`btn small${row.tag === "Agent's pick" ? " primary" : ""}`} disabled={busy} onClick={() => approveRow(row)}>Approve plan</button>}
       extra={(row) => row.tag === "Agent's pick" && !bestIsPick ? draftBox : null} />}
   </section>
@@ -270,6 +278,7 @@ function DecisionPanel({ decision, zone, priority, onAct }: { decision: Decision
 
 function Findings({ decision, steps }: { decision: Decision; steps: Step[] }) {
   const byId = useMemo(() => new Map(steps.map((step) => [step.id, step])), [steps])
+  const labelOf = useSourceLabel()
   return <section className="findings" aria-label="What the agent found">
     {!!decision.facts?.length && <>
       <h3 className="case-sec-title">Behind the suggestion</h3>
@@ -278,7 +287,7 @@ function Findings({ decision, steps }: { decision: Decision; steps: Step[] }) {
         <span className="fact-sources">{(fact.sources ?? []).map((ref) => {
           const source = parseSource(ref)
           const step = source.table === "agent_steps" ? byId.get(source.id) : undefined
-          const label = step ? `${step.actor === "driver" ? "Driver said" : "Asked"}, ${fmtClock(step.createdAt)}` : source.label
+          const label = step ? `${step.actor === "driver" ? "Driver said" : step.actor === "site" ? "Site said" : "Asked"}, ${fmtClock(step.createdAt)}` : labelOf(ref)
           return step
             ? <a key={ref} className="source" href={`#${step.id}`} title={ref}>{label}</a>
             : <span key={ref} className={`source${source.table === "simulated" ? " simulated" : ""}`} title={ref}>{label}</span>

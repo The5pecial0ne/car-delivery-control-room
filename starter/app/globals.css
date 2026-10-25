@@ -518,6 +518,11 @@ details.more > :not(summary) { margin-top: 8px; }
 .desk-empty { display: flex; gap: 10px; margin: 6px 18px 0; padding: 14px 16px; border-radius: var(--radius-lg); background: var(--birch); box-shadow: 0 0 0 1px var(--hair); font-size: 13px; color: var(--muted); }
 .desk-empty .icon { color: var(--green-ink); margin-top: 1px; }
 .desk-empty b { font-weight: 600; color: var(--ink); }
+.desk-roles { margin: 14px 18px 0; }
+.who-does-what { display: grid; gap: 10px; font-size: 13px; }
+.who-does-what h3 { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+.who-does-what ul { display: grid; gap: 2px; padding-left: 16px; list-style: disc; color: var(--muted); }
+.who-does-what-note { font-size: 12px; color: var(--subtle); }
 .desk-demos { margin: 18px 18px 0; padding-top: 14px; border-top: 1px solid var(--hair); }
 .desk-demos p { font-size: 12px; color: var(--subtle); margin-bottom: 8px; }
 .desk-demos ul { display: grid; gap: 4px; }

@@ -15,6 +15,7 @@ import type { CaseSummary } from "./components/case-view"
 import { Icon } from "./components/icons"
 import { OrderFocus } from "./components/order-focus"
 import { cardDeadline, QueueCard, WatchCard } from "./components/queue-cards"
+import { WhoDoesWhat } from "./components/who-does-what"
 
 type Demo = { orderId: string; title: string; open: boolean }
 type Listing = { cases: CaseSummary[]; demos: Demo[]; snapshotAt: string | null }
@@ -158,6 +159,7 @@ export default function ControlRoom() {
       {attention.length > 0 && <ul className="queue-list">{attention.map((card) => <li key={card.id}>
         <QueueCard card={card} agentCase={cases.get(card.id)} snapshotAt={snapshotAt} wall={wall} active={card.id === selected} onSelect={choose} />
       </li>)}</ul>}
+      <div className="desk-roles"><WhoDoesWhat /></div>
       {listing && listing.demos.length > 0 && <footer className="desk-demos">
         <p>Start a demo case</p>
         <ul>{listing.demos.map((demo) => <li key={demo.orderId}>

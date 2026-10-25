@@ -60,7 +60,8 @@ export function usePlanB(orderId: string, priority: Priority, onPlan?: (plan: Ra
   return { ...result, refresh: () => setRound((value) => value + 1) }
 }
 
-export function PrioritySwitch({ priority, onChange }: { priority: Priority; onChange: (value: Priority) => void }) {
+/** With no priority chosen yet (null), nothing is pressed and the agent's own pick leads. */
+export function PrioritySwitch({ priority, onChange }: { priority: Priority | null; onChange: (value: Priority) => void }) {
   const current = PRIORITIES.find((item) => item.key === priority)
   return <div className="priority">
     <div className="priority-row">
@@ -71,7 +72,8 @@ export function PrioritySwitch({ priority, onChange }: { priority: Priority; onC
         </button>)}
       </div>
     </div>
-    {current && <p className="priority-trade"><b>{current.label}:</b> {current.tradeOff}</p>}
+    {current ? <p className="priority-trade"><b>{current.label}:</b> {current.tradeOff}</p>
+      : <p className="priority-trade">Showing the agent's own pick. Choose one to rank every option by it.</p>}
   </div>
 }
 
@@ -144,13 +146,13 @@ export function BestOption({ row, children, note }: { row: Row; children: React.
  * nothing the card leaves out is more than a click away.
  */
 export function CompareOptions({ rows, priority, action, extra }: {
-  rows: Row[]; priority: Priority; action: (row: Row) => React.ReactNode; extra?: (row: Row) => React.ReactNode
+  rows: Row[]; priority: Priority | null; action: (row: Row) => React.ReactNode; extra?: (row: Row) => React.ReactNode
 }) {
   const others = rows.length - 1
   if (others < 1) return null
   return <details className="fold other-options">
     <summary>
-      <span className="fold-summary">{others} other option{others === 1 ? "" : "s"}, ranked for {priorityLabel(priority).toLowerCase()}</span>
+      <span className="fold-summary">{others} other option{others === 1 ? "" : "s"}{priority ? `, ranked for ${priorityLabel(priority).toLowerCase()}` : ""}</span>
       <span className="fold-action"><span className="fold-show">Compare options</span><span className="fold-hide">Hide</span><Icon name="chevron" size={12} /></span>
     </summary>
     <ol className="options">{rows.map((row, at) => <li key={row.key} className={`option${at === 0 ? " is-best" : ""}`}>

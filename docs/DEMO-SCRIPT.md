@@ -8,6 +8,8 @@ Before recording: start the starter (README). `npm run db:seed` already puts the
 
 **0:40 to 1:20. One case in a few seconds.** Open the BMW M4 at Velantora Helsinki (top of the list). "The driver is at the dealer and the car isn't there. The header says it in one line, the countdown says what happens in 27 minutes, and there is one recommended plan with Approve, Edit or Reject." Open *View evidence*. "Before I saw anything, the agent called the pickup desk and found the car at the Vantaa yard. Every fact is marked confirmed, reported or unknown, with its source." Switch *Speed* to *Cost*. "The ranking changes, and it explains each option against the others." Open *View pattern*. "And this place has a habit with keys and release papers."
 
+Open the Bentley. "This is Bahn's own example. The agent's suggestion leads: call the dealer, their assistance or a tow, with the customer message drafted for me to send." Open *Who does what* under the list. "What it does alone, what waits for my yes, and what it never does."
+
 **1:20 to 1:40. Knowing when to stay out.** Open the Volkswagen Golf marked "Agent handled" (under On track, Moving). "Here the agent checked with the driver, found they had checked in, withdrew a stale change request by itself, which is the one thing it may do alone, and closed the case." Then open the Ferrari Roma. "And when the problem is paperwork, Plan B says so, instead of suggesting a new driver."
 
 **1:40 to 1:50. Built for people.** Flip **Easy reading** in the sidebar. "OpenDyslexic, calmer spacing, nothing cut off."
