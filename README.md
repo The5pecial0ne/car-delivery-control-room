@@ -51,7 +51,7 @@ If port 5438 or 9009 is already taken on your machine, change it in `starter/com
 ## Where to read more
 
 - [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md): how we built it, and how we worked with AI along the way.
-- [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md): the walkthrough we follow in the demo video.
+- [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md): a step-by-step walkthrough of the app, with what to say at each step.
 - `PARTICIPANT-BRIEF.md` and `OPERATIONS-CONTEXT.md`: Bahn's brief and how car delivery work goes there.
 
 ## What is where

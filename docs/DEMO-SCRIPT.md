@@ -1,17 +1,45 @@
-# Demo video script (2 to 3 minutes)
+# Demo script
 
-Before recording: start the starter (README). `npm run db:seed` already puts the four recorded demo cases on the desk. To record live agent runs instead, run `npm run agent:demo` in `starter/` (about two minutes, needs a model key). Open http://localhost:3000 at laptop width.
+A walkthrough of the app, step by step, with what to say at each step. It matches the app as it is on `main`.
 
-**0:00 to 0:15. The pitch.** "Bahn has hundreds of orders on the go and most need nobody. Our control room shows a person only the ones that do, and our agent does the legwork first: it investigates, then plans the recovery. A person makes the call."
+**To show it live:** start the app (README), open http://localhost:3000 at laptop width, and run `npm run db:seed` again just before you start, so the case countdowns begin fresh. No model key is needed: the seed loads the four recorded agent cases. To show live agent runs instead, run `npm run agent:demo` in `starter/` first (about two minutes, needs a model key).
 
-**0:15 to 0:40. The desk.** On the home page. "18 of 100 orders need attention. Everything else is on the right, and every one of those says what was checked: no open alerts, driver on the road, ETA inside the promise. Orders with a routine follow-up say who owns it. Each row on the left says how serious it is, how much time is left, and who has the next move."
+## The control room (0:00 to 1:52)
 
-**0:40 to 1:20. One case in a few seconds.** Open the BMW M4 at Velantora Helsinki (top of the list). "The driver is at the dealer and the car isn't there. The header says it in one line, the countdown says what happens in 27 minutes, and there is one recommended plan with Approve, Edit or Reject." Open *View evidence*. "Before I saw anything, the agent called the pickup desk and found the car at the Vantaa yard. Every fact is marked confirmed, reported or unknown, with its source." Switch *Speed* to *Cost*. "The ranking changes, and it explains each option against the others." Open *View pattern*. "And this place has a habit with keys and release papers."
+**0:00 · Title.** Bahn Continuity: investigate, plan the recovery, a person makes the call.
+> This is Bahn Continuity. Most cars on the move need nobody. Our control room shows a person only the ones that do, and one agent does the legwork first: it investigates, then plans the recovery. A person makes the call.
 
-Open the Bentley. "This is Bahn's own example. The agent's suggestion leads: call the dealer, their assistance or a tow, with the customer message drafted for me to send." Open *Who does what* under the list. "What it does alone, what waits for my yes, and what it never does."
+**0:18 · The desk.** Point at "18 need attention", then one row (Critical, Time left, Decision needed), then the On track panel and a "Checked:" line. Scroll On track a little.
+> Of a hundred orders, eighteen need attention. Each row says how serious it is, how much time is left, and who moves next. Everything else is On track, and says what was checked. An order nobody checked is not fine.
 
-**1:20 to 1:40. Knowing when to stay out.** Open the Volkswagen Golf marked "Agent handled" (under On track, Moving). "Here the agent checked with the driver, found they had checked in, withdrew a stale change request by itself, which is the one thing it may do alone, and closed the case." Then open the Ferrari Roma. "And when the problem is paperwork, Plan B says so, instead of suggesting a new driver."
+**0:35 · BMW M4, Helsinki to Turku** (top of the list, open by default). Point at the title, the issue line, the countdown, the recommended action, then Approve plan, Edit plan and Reject.
+> The top case: a driver is waiting in Helsinki, and the BMW isn't there. One line says what's wrong, one countdown says how long we have, and one recommended action waits for Approve, Edit or Reject.
 
-**1:40 to 1:50. Built for people.** Flip **Easy reading** in the sidebar. "OpenDyslexic, calmer spacing, nothing cut off."
+**0:52 · View evidence.** Scroll to "The one question that unlocks this case", point at a "Site said" chip, then at the Confirmed and Reported columns and "Customer wrote, 21 Oct 07:39".
+> The agent already called the pickup desk and found the car at a yard in Vantaa. Every fact is confirmed, reported or unknown, with who said it, and when.
 
-**1:50 to 2:50. How we built it.** Show `docs/BUILD-LOG.md`, then the agent activity on the Bentley case. "We built this with Claude Code: one coordinator and a session per job, every change a pull request we checked in the browser before merging. We tuned the agent by reading full traces. When it got dates or sources wrong, we moved that into a tool or a check, not more prompt. A checker in code sends back any hand-over that cites a source the agent never saw, and while tuning it caught exactly that. The agent even caught our own mistake: we had put the Bentley in the wrong place, and it noticed the tracking data disagreed. We threw away a dark theme, a top bar and a vertical timeline. And this morning we asked Claude to judge us honestly. It found our desk flagged 43 orders, so we fixed it to 18."
+**1:04 · Cost, then the site pattern.** Scroll back up and press **Cost**: the recommendation changes to the backup driver with its €134 cost. Scroll down and open **View pattern** for Velantora Helsinki.
+> If cost matters more today, one click re-ranks every option. And this site has a pattern: keys and release papers, again.
+
+**1:15 · Bentley Continental GT, Munich to Hamburg.** Point at the issue line, the agent's pick (call Marvellin Motorhandel about Bentley's roadside assistance or a tow), Quoted, and the drafted customer message. Then open **Who does what** at the bottom of Needs attention and point at its three lists.
+> Bahn's own example: a warning light on the motorway. The agent's pick leads: call the dealer about roadside assistance, with tow quotes ready and a customer message drafted for a person to send. And who does what is spelled out.
+
+**1:31 · Volkswagen Golf** (On track, "Agent handled"). Point at "The agent handled this without you" and the agent activity line. Then open **Ferrari Roma, Hamburg** in Needs attention and point at "No Plan B needed".
+> It knows when to stay out. This driver had checked in, so the agent withdrew a stale change request, the one thing it may do alone, and closed the case. And when the trouble is paperwork, Plan B says so.
+
+**1:46 · Easy reading.** Flip the switch in the sidebar.
+> Easy reading switches everything to OpenDyslexic.
+
+## How we built it (1:52 to 2:44)
+
+**1:52 · Slide: one person, many Claude Code sessions.** One person, a coordinator session, one session per job, then pull request, real browser, merged only on a person's word.
+> We built this with Claude Code: one coordinator, and a session for each job. Every change came back as a pull request, was checked in a real browser, and merged only when a person said so.
+
+**2:06 · Slide: tuning the agent.** "If code can get it right, it goes in a tool or a check", three before-and-after rows, and `unseenSources` from `lib/agent/tools.ts`.
+> We tuned the agent by reading full traces. If code can get it right, it goes in a tool or a check, not more prompt. It got dates wrong, so it got a sailing planner. It cited sources it never saw, so a checker now sends those hand-overs back. It even caught our mistake: our Bentley was in the wrong place.
+
+**2:28 · Slide: what we threw away.** Screenshots of the all-red theme, the top bar and the vertical timeline, crossed out. Then the honest review: 43 → 18.
+> We threw away first answers that looked fine: an all-red theme, a top bar, a long vertical timeline. Then we asked a fresh session to judge us honestly. Our desk flagged forty-three orders. Now it's eighteen.
+
+**2:44 · Close.** The repo and `npm run db:seed`.
+> Bahn Continuity. The agent does the legwork, a person makes the call. It runs from a fresh clone, with no model key needed.
