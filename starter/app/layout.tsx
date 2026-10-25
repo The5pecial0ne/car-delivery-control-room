@@ -15,8 +15,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Poppins for headings, Manrope for body text and the interface, Reddit Mono for identifiers.
-            OpenDyslexic, for easy reading mode, ships with the app. The rest load from Google Fonts; without a network the stack falls back to Arial. */}
         <script dangerouslySetInnerHTML={{ __html: READING_MODE_SCRIPT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

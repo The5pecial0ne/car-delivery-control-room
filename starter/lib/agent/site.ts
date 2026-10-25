@@ -1,8 +1,3 @@
-// A simulated pickup desk, so the agent can check a place the way a person
-// would: by calling the site. Same idea as the simulated driver. A smaller
-// model plays the contact named on the order's pickup details, sees what the
-// site has already said, and knows a private scenario the agent cannot see.
-
 import { asc, eq, inArray } from "drizzle-orm"
 import { conversations, messages, relatedRecords } from "@/lib/schema"
 import { db } from "./conn"
@@ -24,7 +19,6 @@ export async function simulateSiteReply(caseRow: CaseRow, complete: CompleteFn):
   const earlier = threads.length
     ? await db.select().from(messages).where(inArray(messages.conversationId, threads.map((thread) => thread.id))).orderBy(asc(messages.authoredAt))
     : []
-  // What the site said before, so it stays in character.
   const history: ChatMessage[] = earlier.filter((row) => row.authorType === "site_contact").map((row) => ({ role: "assistant", content: row.body }))
   for (const step of await listSteps(caseRow.id)) {
     if (step.kind !== "message") continue

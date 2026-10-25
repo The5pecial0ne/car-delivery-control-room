@@ -1,11 +1,5 @@
 "use client"
 
-// A small donut chart in plain SVG. Every segment is a button: hover or focus
-// shows its name, count and share. A click or Enter selects only that segment;
-// Shift-click or Shift+Enter adds it to the selection or takes it out. The
-// legend lists the same numbers in words, with a checkbox per row, so several
-// groups can be picked on a touch screen too and nothing depends on colour.
-
 import { useId, useState } from "react"
 
 export type Segment = { key: string; label: string; count: number; color: string; hatched?: boolean }
@@ -13,7 +7,6 @@ export type Segment = { key: string; label: string; count: number; color: string
 const SIZE = 240
 const RADIUS = 100
 const WIDTH = 34
-// A thin surface-coloured gap between segments, in degrees.
 const GAP = 1.6
 
 const percent = (count: number, total: number) => (total ? Math.round((count / total) * 1000) / 10 : 0)
@@ -24,7 +17,6 @@ function point(angle: number, radius: number) {
   return [SIZE / 2 + radius * Math.cos(radians), SIZE / 2 + radius * Math.sin(radians)]
 }
 
-/** One ring segment from start to end, in degrees clockwise from the top. */
 function arc(start: number, end: number, outer: number, inner: number) {
   const large = end - start > 180 ? 1 : 0
   const [x1, y1] = point(start, outer)
@@ -38,7 +30,6 @@ export function DonutChart({ segments, selected, onSelect, label }: {
   segments: Segment[]; selected: string[]; onSelect: (keys: string[]) => void; label: string
 }) {
   const picked = new Set(selected)
-  // A plain click picks just this one (or clears it if it was the only one); Shift adds or removes it.
   const press = (key: string, add: boolean) => {
     if (add) onSelect(picked.has(key) ? selected.filter((item) => item !== key) : [...selected, key])
     else onSelect(picked.has(key) && selected.length === 1 ? [] : [key])
@@ -77,7 +68,6 @@ export function DonutChart({ segments, selected, onSelect, label }: {
         {total === 0 && <circle cx={SIZE / 2} cy={SIZE / 2} r={RADIUS - WIDTH / 2} fill="none" stroke="var(--hair)" strokeWidth={WIDTH} />}
         {arcs.map(({ segment, start, end, middle }) => {
           const on = picked.has(segment.key)
-          // The selected segment steps out a little, so it reads as picked even without colour.
           const [dx, dy] = on ? point(middle, 6).map((value) => value - SIZE / 2) : [0, 0]
           return <path key={segment.key} d={arc(start, end, RADIUS, RADIUS - WIDTH)}
             className={`donut-seg${on ? " is-on" : ""}${selected.length && !on ? " is-dim" : ""}`}

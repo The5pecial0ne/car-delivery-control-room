@@ -87,11 +87,6 @@ export function buildBoardCard(bundle: Bundle): BoardCard {
   }
 }
 
-/**
- * What the records were checked for, in a few words each, so an order that
- * needs nobody still says why it is fine. Only checks that came back clean are
- * listed: a problem would have put the order in front of a person instead.
- */
 function deriveChecks(bundle: Bundle, keyDates: KeyDate[], driverOnIt: boolean): string[] {
   const lane = bundle.order.lane
   if (lane === "cancelled") return []

@@ -1,9 +1,5 @@
 "use client"
 
-// "Site pattern detected": shown on an order and on its case when the pickup
-// or delivery place keeps causing the same kind of trouble. One line by
-// default; the advice and the other orders open underneath.
-
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import type { SitePattern } from "@/lib/agent/patterns"
@@ -16,7 +12,7 @@ export function SitePatternNotice({ orderId }: { orderId: string }) {
     fetch(`/api/patterns?order=${encodeURIComponent(orderId)}`, { signal: controller.signal })
       .then((response) => response.ok ? response.json() as Promise<{ patterns: SitePattern[] }> : { patterns: [] })
       .then((data) => setPatterns(data.patterns))
-      .catch(() => { /* a missing notice is fine */ })
+      .catch(() => {})
     return () => controller.abort()
   }, [orderId])
   if (!patterns.length) return null

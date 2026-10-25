@@ -1,8 +1,3 @@
-"""Check the 100-order packet: record counts, links and attachment hashes.
-
-It needs nothing but the files in this repository.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -196,7 +191,6 @@ def check_transport(tables: dict[str, dict[str, dict]]) -> None:
                     f"{segment['id']}: {field} is outside plan")
     for table in ("addresses", "vehicles", "transport_points", "transport_segments"):
         require(bool(tables[table]), f"{table}: empty after selection")
-    # A compact packet must not drag along vehicles and plans for removed orders.
     used_vehicles = {item["vehicle_id"] for item in items.values()}
     require(set(tables["vehicles"]) == used_vehicles, "Unlinked vehicles remain")
     require(all(plan["order_id"] in orders for plan in plans.values()),

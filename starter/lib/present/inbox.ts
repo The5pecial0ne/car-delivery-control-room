@@ -1,6 +1,3 @@
-// The support inbox: mail that arrived before an order link was certain.
-// Candidate orders are hypotheses; only linked orders are confirmed.
-
 import type { Directory } from "./actors"
 import { obj, str, strings } from "./bundle"
 import { humanize, label, labelIn } from "./labels"

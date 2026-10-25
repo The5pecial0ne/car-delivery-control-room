@@ -1,6 +1,3 @@
-// One sentence per operational event. The event stays the source; the sentence
-// only reads it out with names instead of identifiers.
-
 import { type Bundle, type EventRow, num, obj, rows, str } from "./bundle"
 import { humanize, label, labelIn } from "./labels"
 import { fmtDateTime, fmtMoney } from "./time"

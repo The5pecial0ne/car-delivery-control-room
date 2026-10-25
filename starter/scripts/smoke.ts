@@ -164,7 +164,6 @@ async function main(): Promise<void> {
         thread.linked_order_ids.length === 1)) {
     throw new Error("Inbox link uncertainty was lost from the starter API")
   }
-  // The board and the order record must agree on whether an order needs a person.
   const overviewResponse = await fetch(`${base}/api/overview`)
   if (!overviewResponse.ok) throw new Error("Overview did not load")
   const overview = await overviewResponse.json() as { visible: { id: string; reference: string; attention: unknown[] }[] }

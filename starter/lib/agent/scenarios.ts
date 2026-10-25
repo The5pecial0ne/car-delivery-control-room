@@ -1,12 +1,3 @@
-// The demo cases. Each one names an order from the dataset, what starts the
-// case, and what the simulated driver privately knows. The agent sees only the
-// trigger and whatever it finds out by looking and asking.
-//
-// They are picked to show both halves of the job: cases where the agent must
-// bring a person a decision, and one where it should sort things out and get
-// out of the way.
-
-// driver and site are what the simulated driver and the simulated pickup desk privately know.
 export type Scenario = { orderId: string; title: string; trigger: string; driver: string; site?: string }
 
 export const SCENARIOS: Scenario[] = [
@@ -39,13 +30,11 @@ export const SCENARIOS: Scenario[] = [
 
 export const scenarioFor = (orderId: string) => SCENARIOS.find((scenario) => scenario.orderId === orderId)
 
-// A case keeps its private scenario in one text column. A plain string is
-// what the driver knows; JSON holds both the driver's and the site's.
 export const packScenario = (driver?: string | null, site?: string | null) => site ? JSON.stringify({ driver: driver ?? null, site }) : driver ?? null
 export function scenarioParts(stored: string | null | undefined): { driver: string | null; site: string | null } {
   if (!stored) return { driver: null, site: null }
   if (stored.startsWith("{")) {
-    try { const parsed = JSON.parse(stored) as { driver?: string | null; site?: string | null }; return { driver: parsed.driver ?? null, site: parsed.site ?? null } } catch { /* plain text after all */ }
+    try { const parsed = JSON.parse(stored) as { driver?: string | null; site?: string | null }; return { driver: parsed.driver ?? null, site: parsed.site ?? null } } catch {}
   }
   return { driver: stored, site: null }
 }

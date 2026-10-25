@@ -118,7 +118,6 @@ export const operationalEvents = pgTable("operational_events", {
   details: jsonb("details").$type<Record<string, unknown>>().notNull(),
 }, (table) => [index("events_order_time_idx").on(table.orderId, table.recordedAt)])
 
-// Less frequently queried types remain accessible without flattening away their source fields.
 export const relatedRecords = pgTable("related_records", {
   collection: text("collection").notNull(),
   id: text("id").notNull(),
@@ -129,23 +128,15 @@ export const relatedRecords = pgTable("related_records", {
   index("related_records_order_idx").on(table.orderId, table.collection),
 ])
 
-// Agent work lives in its own two tables so the dataset snapshot stays untouched.
-// A case is one problem on one order that an agent is working on. Its steps are
-// the full trace: what the agent looked up, who it talked to, what it proposed
-// and what a person decided.
 export const agentCases = pgTable("agent_cases", {
   id: text("id").primaryKey(),
   orderId: text("order_id").notNull().references(() => orders.id),
   agentId: text("agent_id").notNull(),
-  // working, needs_person, resolved or failed
   status: text("status").notNull(),
   trigger: text("trigger").notNull(),
   headline: text("headline"),
-  // The decision a person is being asked to make right now, if any.
   pendingDecision: jsonb("pending_decision").$type<Record<string, unknown> | null>(),
-  // What the simulated driver knows but has not said yet. Demo only.
   scenario: text("scenario"),
-  // The model conversation, kept so a case can pick up where it left off.
   transcript: jsonb("transcript").$type<unknown[]>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
@@ -155,9 +146,7 @@ export const agentSteps = pgTable("agent_steps", {
   id: text("id").primaryKey(),
   caseId: text("case_id").notNull().references(() => agentCases.id),
   seq: integer("seq").notNull(),
-  // agent, driver, person or system
   actor: text("actor").notNull(),
-  // lookup, message, proposal, decision, action, note or error
   kind: text("kind").notNull(),
   body: text("body").notNull(),
   data: jsonb("data").$type<Record<string, unknown>>().notNull(),

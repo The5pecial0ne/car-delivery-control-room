@@ -1,9 +1,3 @@
-// Checks the agent's plumbing without calling a real model: a scripted stand-in
-// plays the agent and the driver, and we check that the case moves through the
-// states we expect and that every step lands in the trace.
-//
-//   npm run agent:test
-
 import "dotenv/config"
 import assert from "node:assert/strict"
 import { decide, openCase, runCase, tellAgent } from "@/lib/agent/loop"
@@ -24,7 +18,6 @@ const findings = (source: string) => call("record_findings", {
   key_question: { question: "Is the driver safe?", ask: "nobody", why: "Safety first", answer: "Yes" }, timeline: [{ at: "2026-10-21T08:04:00Z", what: "Car stopped", status: "confirmed", sources: [source] }],
 })
 
-// Each agent turn looks at how far the conversation has got and plays the next move.
 const scripted: CompleteFn = async ({ model, messages }) => {
   if (model === DRIVER_MODEL) return { role: "assistant", content: "Yes, I'm safe. Rasthof Göttingen car park, engine off. [photo: red engine warning]" }
   const turns = messages.filter((message) => message.role === "assistant").length
@@ -42,7 +35,6 @@ const scripted: CompleteFn = async ({ model, messages }) => {
   if (turns === 2) {
     const source = lastToolResult(messages)?.source
     assert.match(source, /^agent_steps\/step-/)
-    // First a malformed hand-over, which the tool should refuse.
     return { role: "assistant", content: null, tool_calls: [call("ask_person", { headline: "x", facts: [], recommendation: { action: "teleport", summary: "?" } })] }
   }
   const source = messages.map((message) => message.role === "tool" ? message.content : "").join("").match(/agent_steps\/step-[0-9a-f]+/)?.[0] ?? ""
@@ -91,12 +83,10 @@ async function main(): Promise<void> {
   assert.deepEqual(steps.map((step) => step.seq), steps.map((_, index) => index + 1), "steps are numbered in order")
   assert.ok(steps.find((step) => step.kind === "action")?.body.startsWith("Done (simulated)"))
 
-  // Approving twice must not be possible.
   await assert.rejects(decide(caseRow.id, { choice: "approve" }, deps), /no decision waiting/)
 
   console.log(`ok: ${steps.length} steps on ${caseRow.id}`)
   for (const step of steps) console.log(`${String(step.seq).padStart(3)}  ${step.actor.padEnd(6)} ${step.kind.padEnd(8)} ${step.body}`)
-  // Leave the queue as we found it.
   await deleteCase(caseRow.id)
   await closeDb()
 }

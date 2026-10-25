@@ -1,9 +1,5 @@
 "use client"
 
-// The two kinds of order card on the control room. A queue card is a compact
-// row for an order that needs a person. A watch card is one glance at an order
-// that is going to plan.
-
 import { caseNow, countdown } from "@/lib/agent/clock"
 import { followUp, watchStatus } from "@/lib/present/queue"
 import { fmtDateTime, relativeTo } from "@/lib/present/time"
@@ -13,8 +9,6 @@ import type { CaseSummary } from "./case-view"
 import { nextDeadline } from "./decision-extras"
 import { Icon } from "./icons"
 
-
-/** The deadline a card leads with: the agent's next countdown when it waits on a decision, else the order's decisive date. */
 export function cardDeadline(card: BoardCard, agentCase: CaseSummary | null | undefined, snapshotAt: string | null, wall: number): { text: string; tone: Tone; left?: string } | null {
   const decision = agentCase?.status === "needs_person" ? agentCase.pendingDecision : null
   const next = decision && agentCase ? nextDeadline(decision.deadlines, caseNow(snapshotAt, agentCase.createdAt, wall)) : null
@@ -23,25 +17,17 @@ export function cardDeadline(card: BoardCard, agentCase: CaseSummary | null | un
     return { text: `${left.left} left`, tone: left.tone, left: left.left }
   }
   const date = card.decisive
-  // Only a date still ahead is a deadline. "Order created" never is.
   if (!date || date.key === "created" || !snapshotAt || new Date(date.end ?? date.start).getTime() <= new Date(snapshotAt).getTime()) return null
   return { text: date.note && /^in /.test(date.note) ? `${date.label.toLowerCase()} ${date.note}` : `${date.label.toLowerCase()} ${dateText(date.start, date.end, date.zone)}`, tone: date.tone }
 }
 
-/**
- * One order that needs a person, kept to four short lines: what car and where,
- * how serious, how long is left, and whether someone has to decide. Everything
- * else waits in the workspace that opens on click.
- */
 export function QueueCard({ card, agentCase, snapshotAt, wall, active, onSelect }: {
   card: BoardCard; agentCase?: CaseSummary; snapshotAt: string | null; wall: number; active: boolean; onSelect: (id: string) => void
 }) {
   const critical = card.attentionTone === "danger" || agentCase?.status === "failed"
   const deadline = cardDeadline(card, agentCase, snapshotAt, wall)
-  // A person decides when the agent's hand-over waits, the agent stopped, or another agent left a proposal to review.
   const decision = agentCase?.status === "needs_person" || agentCase?.status === "failed" || card.attention.some((item) => item.kind === "proposal")
   const when = deadline?.left ? `Time left: ${deadline.left}` : deadline ? `Next: ${deadline.text}` : "No deadline ahead"
-  // Otherwise, say who has the next move, so "Critical" never sits next to "nothing to do".
   const owner = card.attention.find((item) => item.owner)?.owner
   const next = decision ? "Decision needed"
     : agentCase?.status === "working" ? "Agent is working on it"

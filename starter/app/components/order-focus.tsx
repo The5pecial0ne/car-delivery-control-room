@@ -1,12 +1,5 @@
 "use client"
 
-// The workspace for one order, in the order a person decides: what is wrong,
-// how long is left, what to optimise for and what to do. Evidence, Plan B,
-// the journey, the agent's trace and the order record are one line each and
-// open on request. With an agent case the work is the case itself;
-// without one, an order that needs a person still gets ranked options and a
-// prepared Plan B.
-
 import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { caseNow, zoneForCity } from "@/lib/agent/clock"
@@ -30,7 +23,6 @@ export function OrderFocus({ orderId, agentCase, problem, snapshotAt, onBack, on
   const [error, setError] = useState("")
   const [caseData, setCaseData] = useState<CaseData | null>(null)
   const [plan, setPlan] = useState<RankedPlanB | null>(null)
-  // The case clock ticks, so the "Now" marker and the deadlines move on their own.
   const [wall, setWall] = useState(() => Date.now())
   useEffect(() => { const timer = setInterval(() => setWall(Date.now()), 20_000); return () => clearInterval(timer) }, [])
 
@@ -52,7 +44,6 @@ export function OrderFocus({ orderId, agentCase, problem, snapshotAt, onBack, on
   const header = detail?.view.header
 
   const title = header ? `${header.vehicle?.title ?? "Vehicle"} · ${header.from.city} → ${header.to.city}` : null
-  // The journey measures itself when it first draws, so it mounts when opened.
   const timeline = detail && <Disclosure id="delivery-timeline" lazy action="View timeline"
     summary={<>Full delivery timeline, from order to handover.</>}>
     <OrderTimeline view={detail.view} agentCase={liveCase} steps={caseData?.case.id === agentCase?.id ? caseData?.steps : null} now={now} planB={plan} />
@@ -74,7 +65,6 @@ export function OrderFocus({ orderId, agentCase, problem, snapshotAt, onBack, on
     {detail && agentCase && <CaseView key={agentCase.id} summary={agentCase} snapshotAt={snapshotAt} onChange={onChange} onLoaded={onLoaded} onPlan={setPlan} title={title} timeline={timeline} after={record} />}
     {detail && !agentCase && problem && <Recovery orderId={orderId} problem={problem} title={title ?? orderId} zone={zoneForCity(header?.to.city)} onPlan={setPlan} onChange={onChange} timeline={timeline} record={record} />}
     {detail && !agentCase && !problem && <>
-      {/* A routine follow-up (an open thread, an owned alert) is named, so "On track" never hides it. */}
       {detail.view.attention[0]
         ? <CaseHead label="Followed up by the team" tone="accent" title={title ?? orderId}
             issue={`${detail.view.attention[0].title}${detail.view.attention[0].owner ? `, with ${detail.view.attention[0].owner}` : ""}. Nothing for you to decide. ${detail.view.story.headline}`} />
@@ -88,7 +78,6 @@ export function OrderFocus({ orderId, agentCase, problem, snapshotAt, onBack, on
   </div>
 }
 
-/** The order's own record, folded behind its latest update. */
 function RecordFold({ detail }: { detail: Detail }) {
   const { view } = detail
   const latest = view.history[0]?.events[0]
@@ -103,7 +92,6 @@ function RecordFold({ detail }: { detail: Detail }) {
   </Disclosure>
 }
 
-/** Recovery for an order the agent has no case on yet: priority, ranked options and Plan B. */
 function Recovery({ orderId, problem, title, zone, onPlan, onChange, timeline, record }: {
   orderId: string; problem: Problem; title: string; zone: string; onPlan: (plan: RankedPlanB | null) => void; onChange: () => void
   timeline: React.ReactNode; record: React.ReactNode

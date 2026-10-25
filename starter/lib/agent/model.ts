@@ -1,6 +1,3 @@
-// A thin client for OpenRouter's chat completions endpoint, which speaks the
-// OpenAI format for messages and tool calls. Any model OpenRouter serves works.
-
 export type ToolCall = { id: string; type: "function"; function: { name: string; arguments: string } }
 
 export type ChatMessage =
@@ -14,7 +11,6 @@ export type CompleteInput = { model: string; messages: ChatMessage[]; tools?: To
 export type CompleteFn = (input: CompleteInput) => Promise<Extract<ChatMessage, { role: "assistant" }>>
 
 export const AGENT_MODEL = process.env.AGENT_MODEL ?? "anthropic/claude-sonnet-4.5"
-// The simulated driver only needs to sound like a person, so a smaller model is plenty.
 export const DRIVER_MODEL = process.env.DRIVER_MODEL ?? "anthropic/claude-haiku-4.5"
 
 export const openRouterComplete: CompleteFn = async ({ model, messages, tools, temperature }) => {
@@ -36,8 +32,6 @@ export const openRouterComplete: CompleteFn = async ({ model, messages, tools, t
   return { role: "assistant", content: message.content ?? null, tool_calls: message.tool_calls?.length ? message.tool_calls : undefined }
 }
 
-// New OpenRouter accounts get about 20 requests a minute per model, and three
-// cases running side by side hit that. Wait and try again rather than fail the case.
 async function withRetry(send: () => Promise<Response>, attempts = 6): Promise<Response> {
   for (let attempt = 1; ; attempt++) {
     const response = await send()

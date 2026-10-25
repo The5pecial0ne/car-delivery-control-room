@@ -20,7 +20,6 @@ export async function GET() {
   const ids = threads.flatMap((thread) => [...(Array.isArray(thread.candidate_order_ids) ? thread.candidate_order_ids : []), ...(Array.isArray(thread.linked_order_ids) ? thread.linked_order_ids : [])])
     .filter((value): value is string => typeof value === "string")
   const refs = await orderRefs(ids)
-  // The raw threads and messages keep their shape; `view` reads them out with names and references.
   const view = buildInboxView(threads, messages, shared.makeDirectory(), refs, shared.snapshotAt)
   return NextResponse.json({ threads, messages, view })
 }

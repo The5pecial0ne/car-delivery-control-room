@@ -1,15 +1,7 @@
-// Pretend outside services: roadside help, towing, ferries, hotels. Nothing
-// here is real. Prices and times are made up but stable, so the same question
-// gets the same answer every time and a demo can be rehearsed.
-//
-// Where the dataset already has a real-looking record (a ferry quote on the
-// order, say) we return that with its id, and fill in the rest as simulated.
-
 import { and, eq } from "drizzle-orm"
 import { drivers, relatedRecords } from "@/lib/schema"
 import { db } from "./conn"
 
-// A small, stable hash so made-up numbers do not change between runs.
 function seeded(text: string) {
   let hash = 2166136261
   for (const char of text) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619)
@@ -37,9 +29,6 @@ export function roadsideHelp(input: { location: string; make?: string }) {
   }
 }
 
-// Rough coordinates for the places the dataset uses, so distances look like
-// the real map instead of a random number. Matching is by name inside the text
-// the agent passes, so "Rasthof Holledau, A9" and "Hamburg, Germany" both work.
 const PLACES: Record<string, [number, number]> = {
   helsinki: [60.17, 24.94], espoo: [60.21, 24.66], vantaa: [60.29, 25.04], turku: [60.45, 22.27], tampere: [61.5, 23.76],
   lahti: [60.98, 25.66], oulu: [65.01, 25.47], seinäjoki: [62.79, 22.84], pori: [61.48, 21.8],
@@ -58,21 +47,14 @@ function locate(text: string): [number, number] | null {
   return hit ? PLACES[hit] : null
 }
 
-/** Road distance in km between two places, or null if we do not know one of them. */
 export function roadKm(from: string, to: string): number | null {
   const a = locate(from), b = locate(to)
   if (!a || !b) return null
   const rad = Math.PI / 180
   const h = Math.sin((b[0] - a[0]) * rad / 2) ** 2 + Math.cos(a[0] * rad) * Math.cos(b[0] * rad) * Math.sin((b[1] - a[1]) * rad / 2) ** 2
-  // Straight line times a usual detour factor for roads.
   return Math.max(5, Math.round(2 * 6371 * Math.asin(Math.sqrt(h)) * 1.25))
 }
 
-/**
- * Drivers who live near a place and have no job in progress or accepted,
- * nearest first. Whether they would take the job is not known: nobody has
- * asked them, and the agent cannot.
- */
 export async function backupDrivers(input: { near: string; excludeOrderId?: string }) {
   const [all, jobs] = await Promise.all([
     db.select().from(drivers),
@@ -106,7 +88,6 @@ export function towQuote(input: { from: string; to: string }) {
     from: input.from, to: input.to, distance_km: km,
     distance_note: known ? "Road distance estimated from the map." : "One of the places was not recognised, so the distance is a guess. Name a city to get a better quote.",
     price_eur: 180 + Math.round(km * 2.4), earliest_pickup_minutes: pick(60, 180, 3), enclosed_transport: km > 150,
-    // A truck averages about 65 km/h over a long run, plus loading.
     transit_hours: Math.round((km / 65 + 1) * 10) / 10,
   }
 }
@@ -120,7 +101,6 @@ const localTime = (iso: string | null | undefined, timezone: unknown) => {
 export async function ferryOptions(orderId: string) {
   const rows = await db.select().from(relatedRecords).where(and(eq(relatedRecords.collection, "travel_options"), eq(relatedRecords.orderId, orderId)))
   const known = rows.filter((row) => row.details.kind === "FERRY").map((row): Record<string, unknown> => ({ source: `travel_options/${row.id}`, ...row.details }))
-  // One more sailing a day after the latest known one, so there is always something to compare against.
   const latest = known.map((row) => String(row.departure_at ?? "")).sort().at(-1)
   const extra = latest ? (() => {
     const departure = new Date(new Date(latest).getTime() + 24 * 3600_000)
@@ -142,8 +122,6 @@ export async function ferryOptions(orderId: string) {
 }
 
 const hoursBetween = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / 360_000) / 10
-// Nights in a hotel between reaching the terminal and sailing, counted as the
-// local dates you go to bed on. Under six hours of waiting needs no hotel.
 function hotelNights(atTerminal: Date, departure: Date, zone: string): string[] {
   if (hoursBetween(atTerminal, departure) < 6) return []
   const day = (date: Date) => date.toLocaleDateString("en-CA", { timeZone: zone })
@@ -152,12 +130,6 @@ function hotelNights(atTerminal: Date, departure: Date, zone: string): string[] 
   return nights
 }
 
-/**
- * Works out, for every sailing on the order, the whole day plan: when the
- * driver can be at the terminal, whether they make check-in, how many hotel
- * nights it takes, and when the car reaches the buyer against the promise.
- * Plain arithmetic, so the agent does not have to do dates in its head.
- */
 export async function planSailings(input: { orderId: string; onwardDriveHours?: number; readyAt?: string }) {
   const [{ sailings }, rows] = await Promise.all([
     ferryOptions(input.orderId),
@@ -169,7 +141,6 @@ export async function planSailings(input: { orderId: string; onwardDriveHours?: 
   const promiseEnd = promise ? new Date(String(promise.details.end_at)) : null
   const promiseZone = String(promise?.details.timezone ?? "UTC")
   const ready = input.readyAt ? new Date(input.readyAt) : pickup ? new Date(String(pickup.details.end_at)) : null
-  // We do not know the road from the far terminal to the buyer, so the agent can say; two hours is a cautious default.
   const onward = input.onwardDriveHours ?? 2
 
   const plans = sailings.filter((sailing) => sailing.status !== "SOLD_OUT").map((sailing) => {
@@ -217,12 +188,6 @@ export function hotelOptions(input: { near: string; night: string }) {
   }
 }
 
-
-/**
- * How a delay, or a new arrival time, would land against the customer's
- * delivery promise. With new_arrival_at the agent can check a plan directly,
- * which works before pickup too, when there is no ETA from the driver app yet.
- */
 export async function delayImpact(input: { orderId: string; delayHours?: number; newArrivalAt?: string }) {
   const rows = await db.select().from(relatedRecords).where(eq(relatedRecords.orderId, input.orderId))
   const windows = rows.filter((row) => row.collection === "time_windows")

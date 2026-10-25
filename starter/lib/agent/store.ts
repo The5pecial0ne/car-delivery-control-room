@@ -1,5 +1,3 @@
-// Reading and writing agent cases and their steps.
-
 import { randomBytes } from "node:crypto"
 import { asc, desc, eq, sql } from "drizzle-orm"
 import { agentCases, agentSteps } from "@/lib/schema"
@@ -39,7 +37,6 @@ export async function updateCase(id: string, patch: Partial<{
 }
 
 export async function addStep(caseId: string, step: { actor: Actor; kind: StepKind; body: string; data?: Record<string, unknown> }): Promise<StepRow> {
-  // Steps for one case are written one at a time by its own run, so taking the next number this way is safe enough.
   const [{ next }] = await db.select({ next: sql<number>`coalesce(max(${agentSteps.seq}), 0) + 1` })
     .from(agentSteps).where(eq(agentSteps.caseId, caseId))
   const [row] = await db.insert(agentSteps).values({

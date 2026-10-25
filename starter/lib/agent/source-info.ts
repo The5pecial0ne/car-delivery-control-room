@@ -1,7 +1,3 @@
-// Who said a fact and when, for the records a case cites. A fact the driver
-// told the agent already carries its own step; this does the same for facts
-// taken from the dataset, so "Message" becomes "Customer wrote, 19 Oct 12:59".
-
 import { and, eq, inArray } from "drizzle-orm"
 import { alerts, messages, operationalEvents, relatedRecords } from "@/lib/schema"
 import { db } from "./conn"
@@ -14,10 +10,8 @@ const WRITER: Record<string, string> = {
   handoff_contact: "Handover contact wrote", agent: "Bahn agent wrote",
 }
 
-// The first of these a record has is the moment it describes.
 const WHEN = ["recorded_at", "observed_at", "authored_at", "triggered_at", "opened_at", "created_at", "quoted_at", "booked_at", "published_at", "updated_at"]
 
-/** Every table/id reference in a case's findings and hand-over, resolved where the record has a who and a when. */
 export async function resolveSources(json: unknown): Promise<Record<string, SourceInfo>> {
   const refs = [...new Set(JSON.stringify(json ?? null).match(/\b[a-z_]+\/[A-Za-z0-9_.:-]+/g) ?? [])]
   const byTable = new Map<string, string[]>()

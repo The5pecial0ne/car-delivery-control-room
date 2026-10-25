@@ -11,7 +11,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   if (!caseRow) return NextResponse.json({ error: "Case not found" }, { status: 404 })
   const { transcript: _transcript, scenario: _scenario, ...rest } = caseRow
   const steps = await listSteps(id)
-  // Who said each cited record and when, so a fact from the dataset reads like one the driver told the agent.
   const sources = await resolveSources([caseRow.pendingDecision, steps.filter((step) => step.kind === "findings").map((step) => step.data)])
   return NextResponse.json({ case: { ...rest, running: isRunning(id) }, steps, sources })
 }

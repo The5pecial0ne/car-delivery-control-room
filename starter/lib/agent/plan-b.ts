@@ -1,14 +1,3 @@
-// Plan B, prepared before anyone asks. When an order needs a person, the agent's
-// lookup tools do the low-risk legwork straight away: later sailings, backup
-// drivers nearby, a hotel if a plan needs a night, and what each plan means for
-// the delivery promise. Out of that come two or three recovery options, scored
-// on arrival, cost and certainty, so the operator can rank them by what
-// matters most today.
-//
-// It only reads and quotes. Nothing here books, cancels, changes a cost or a
-// promise, or contacts anyone: the same boundary the agent works inside. No
-// model is called either, so preparing it is free and instant.
-
 import { rows, type Bundle } from "@/lib/present/bundle"
 import { loadOrder } from "@/lib/present/load"
 import { buildRecordView } from "@/lib/present/record"
@@ -35,7 +24,6 @@ export type RecoveryOption = {
   summary: string
   arrives_at?: string
   cost_eur?: number
-  /** How the cost was arrived at, so a person can see what is quoted and what is estimated. */
   cost_basis: string
   certainty: Certainty
   delivery: string
@@ -49,9 +37,7 @@ export type RankedOption = RecoveryOption & { rank: number; why: string }
 export type PlanB = {
   orderId: string
   status: "ready" | "insufficient"
-  /** Wall-clock time the legwork was done. */
   preparedAt: string
-  /** The data's own "now": the snapshot the order was read at. */
   asOf: string
   reason: string | null
   checks: PlanBCheck[]
@@ -62,20 +48,14 @@ export type PlanB = {
 export type RankedPlanB = Omit<PlanB, "options"> & { priority: Priority; options: RankedOption[] }
 
 const BOUNDARY = "Nothing has been booked, cancelled or sent. These are quotes and estimates for a person to approve."
-// A rough figure for paying a driver to wait or stay longer, so plans with a night away can be compared.
 const DRIVER_EUR_PER_HOUR = 30
-// How long it usually takes to confirm a fact with a site or a driver before acting.
 const CHECK_HOURS = 1.5
 
 const euro = (value: number) => value.toLocaleString("en-GB", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })
 const plusHours = (iso: string, hours: number) => new Date(new Date(iso).getTime() + hours * 3600_000).toISOString()
 
-// A different driver or a later sailing only helps when the trouble is with the
-// journey itself: the driver, their travel, the ferry, the car on the road or
-// the clock. Paperwork, payment, keys or a claim stay stuck whoever drives.
 const JOURNEY = /driver|travel|ferry|sailing|crossing|terminal|train|flight|hotel|position|tracking|\beta\b|late|delay|promise|breakdown|warning|incident|tow|roadside|availability|start check|no.?show|queue|not at the pickup|cannot find/i
 
-/** What the open points and any agent case on this order are about, as one text to match against. */
 async function problemText(orderId: string, view: RecordView): Promise<string> {
   const cases = await db.select({ trigger: agentCases.trigger }).from(agentCases).where(eq(agentCases.orderId, orderId))
   return [
@@ -90,11 +70,9 @@ function promiseOf(view: RecordView) {
   return promise ? { start: promise.start, end: promise.end ?? promise.start, zone: promise.zone } : null
 }
 
-/** Where an arrival lands against the promise, in words. */
 function againstPromise(arrives: string | undefined, view: RecordView): string {
   const promise = promiseOf(view)
   if (!arrives) return "No new arrival time could be worked out."
-  // Local time where the car is going, the way the rest of the page shows times.
   const when = fmtDateTime(arrives, promise?.zone ?? zoneForCity(view.header.to.city))
   if (!promise) return `Arrives about ${when}. No delivery date has been promised yet.`
   const spare = (new Date(promise.end).getTime() - new Date(arrives).getTime()) / 3600_000
@@ -123,7 +101,6 @@ export async function preparePlanB(orderId: string): Promise<PlanB | null> {
   const collected = steps.some((step) => step.role === "PICKUP" && step.recorded)
   const delivered = steps.some((step) => step.role === "DELIVERY" && step.recorded)
 
-  // Some orders cannot be rescued by a different plan: they are already done or called off.
   if (delivered || view.header.status === "DELIVERED" || view.header.cancelledAt) {
     return {
       ...base, status: "insufficient", options: [], checks: [],
@@ -142,10 +119,8 @@ export async function preparePlanB(orderId: string): Promise<PlanB | null> {
   const promise = promiseOf(view)
   const journey = JOURNEY.test(await problemText(orderId, view))
 
-  // The safe default: change nothing until the open point is confirmed.
   const holdArrives = eta ?? undefined
   const owner = view.attention[0]?.owner
-  // The open point by its own name, without the record type in front: "Release document unclear".
   const openPoint = `“${problem.replace(/^(Open alert|Owned alert|Incident|Open conversation): /, "")}”`
   options.push({
     id: "hold", action: "hold_and_wait", title: journey ? "Keep the plan and confirm the facts first" : "Keep the plan and get the open point cleared",
@@ -170,11 +145,9 @@ export async function preparePlanB(orderId: string): Promise<PlanB | null> {
     }
   }
 
-  // Ferry: later sailings and what each one means for the driver and the promise.
   const sailings = await planSailings({ orderId })
   const booked = view.reservations.find((item) => item.kind === "FERRY" && item.status !== "CANCELLED")
   const usable = sailings.plans.filter((plan) => plan.makes_check_in !== false && plan.status !== "SOLD_OUT")
-    // With a sailing already booked, only the ones after it are a plan B.
     .filter((plan) => !booked?.departureAt || plan.delivered_at > (booked.arrivalAt ?? booked.departureAt))
     .sort((a, b) => a.delivered_at.localeCompare(b.delivered_at))
   if (!sailings.plans.length) {
@@ -214,7 +187,6 @@ export async function preparePlanB(orderId: string): Promise<PlanB | null> {
     checks.push({ key: "hotel", label: "Hotel fallback", status: "not_needed", text: "None of the plans found needs a night away.", sources: [] })
   }
 
-  // Backup driver: near the pickup before collection, near the buyer after.
   const near = collected ? to : from
   const found = await backupDrivers({ near, excludeOrderId: orderId })
   const free = found.drivers.filter((driver) => !driver.on_another_job)
@@ -232,8 +204,6 @@ export async function preparePlanB(orderId: string): Promise<PlanB | null> {
     const tripKm = roadKm(from, to)
     const reach = plusHours(asOf, pick.could_be_there_in_hours)
     const slot = view.header.keyDates.find((item) => item.key === "pickup_slot")
-    // A new driver still waits for the pickup slot, catches the same ferry on a
-    // sea route, and after collection takes over wherever the car is now.
     const arrives = collected
       ? eta ? plusHours(eta, pick.could_be_there_in_hours) : undefined
       : sailings.plans.length
@@ -274,7 +244,6 @@ export async function preparePlanB(orderId: string): Promise<PlanB | null> {
   }
 }
 
-/** The same plan, ranked and explained for what matters most today. */
 export function rankPlanB(plan: PlanB, priority: Priority): RankedPlanB {
   const ranked = rankOptions(plan.options.map((option) => ({ option })), priority)
   return {

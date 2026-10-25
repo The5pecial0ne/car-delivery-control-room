@@ -1,6 +1,3 @@
-// A driver, customer or site, read through the orders it touches. The page
-// reuses the board card so the same facts and attention signals appear here.
-
 import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { customers, drivers, sites } from "@/lib/schema"
@@ -134,7 +131,6 @@ async function loadSite(id: string): Promise<EntityView | null> {
   }
 }
 
-/** Every driver, customer or site, with how many orders in the snapshot involve it. */
 export async function listEntities(kind: EntityKind): Promise<EntityList> {
   const { bundles } = await loadBoardBundles()
   if (kind === "driver") {

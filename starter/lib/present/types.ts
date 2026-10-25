@@ -1,8 +1,3 @@
-// The view models the starter interface renders. They are derived on the server
-// from the dataset records and carry labels, resolved names and chosen dates.
-// They are reading aids; the raw records remain in the API for anyone who needs
-// the source fields.
-
 export type Tone = "danger" | "warn" | "accent" | "ok" | "neutral"
 
 export type Row = Record<string, unknown>
@@ -11,7 +6,6 @@ export type Actor = {
   id: string | null
   kind: "driver" | "operator" | "agent" | "customer" | "site_contact" | "handoff_contact" | "system" | "unknown"
   name: string
-  /** A role or title shown beside the name, for example "Support desk" or "driver". */
   role: string | null
 }
 
@@ -38,15 +32,11 @@ export type AttentionItem = {
   kind: AttentionKind
   tone: Tone
   title: string
-  /** The same item in a few words for a board card. */
   short: string
   detail: string | null
-  /** Who owns the next step, when the record names someone. */
   owner: string | null
-  /** When something is due or was last touched, as an ISO instant. */
   at: string | null
   atLabel: string | null
-  /** Anchor of the record section with the source records. */
   section: string
   recordId: string
 }
@@ -59,7 +49,6 @@ export type KeyDate = {
   zone: string | null
   source: string | null
   tone: Tone
-  /** Short reading of the date against the snapshot: "in 2 d", "slot passed". */
   note: string | null
 }
 
@@ -88,7 +77,6 @@ export type BoardCard = {
   attentionTone: Tone
   decisive: KeyDate | null
   work: WorkLine[]
-  /** What came back clean when the records were read, such as "no open alerts" or "driver booked". */
   checks: string[]
   updatedAt: string
 }
@@ -473,7 +461,6 @@ export type ExpenseView = {
 
 export type HistoryEvent = {
   id: string
-  /** The event's command, for example "vehicle.picked_up". */
   command: string
   at: string
   text: string
@@ -516,7 +503,6 @@ export type RecordHeader = {
   summary: string
 }
 
-/** The situation in plain words: one sentence of context, one headline, one line of dates. */
 export type Story = {
   intro: string
   headline: string
@@ -560,7 +546,6 @@ export type RecordView = {
 
 export type EntityKind = "driver" | "customer" | "site"
 
-/** A driver, customer or site with the orders it is involved in. */
 export type EntityView = {
   snapshotAt: string | null
   kind: EntityKind
@@ -572,7 +557,6 @@ export type EntityView = {
   notes: string[]
   links: { label: string; href: string; hint: string | null }[]
   cards: BoardCard[]
-  /** How this entity is involved with each order, by order id. */
   roles: Record<string, string>
 }
 

@@ -1,10 +1,7 @@
-// Plain words for the agent's records, shared by the interface. Safe to import from the browser.
-
 import { ACTIONS, isActionKind } from "./policy"
 
 export const actionLabel = (kind: unknown) => isActionKind(kind) ? ACTIONS[kind].label : "Something else"
 
-/** Actions a person does themselves, like a phone call. Approving one means "I did it, here is how it went". */
 export const isPersonLed = (kind: unknown) => !isActionKind(kind) || ACTIONS[kind].who === "person"
 
 const SOURCE_NAMES: Record<string, string> = {

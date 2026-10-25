@@ -1,9 +1,3 @@
-// The recorded demo cases, for a desk that shows the agent's work without a
-// model key.
-//
-//   npm run demo:load   clear the desk and load demo/recorded-cases.json (db:seed does this too)
-//   npm run demo:save   save the cases on the desk now, after a fresh npm run agent:demo
-
 import "dotenv/config"
 import { closeDb } from "@/lib/agent/conn"
 import { loadRecorded, saveRecorded } from "@/lib/agent/recorded"

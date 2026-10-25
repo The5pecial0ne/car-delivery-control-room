@@ -1,6 +1,5 @@
 import type { SVGProps } from "react"
 
-// A small stroke icon set at text size. Icons mark a kind of record; words carry the meaning.
 const PATHS: Record<string, string> = {
   alert: "M8 2.5 14.2 13.5H1.8L8 2.5Z M8 6.5v3.2 M8 11.6v.1",
   work: "M3 3.5h10v9H3z M5.5 8l1.8 1.8L10.8 6",

@@ -1,9 +1,5 @@
 "use client"
 
-// Stage one of a case, the investigation: what happened, what is confirmed,
-// what is still unknown, and what the agent asked. It reads the agent's latest
-// findings, which it has to write down before it may plan anything.
-
 import { createContext, Fragment, useContext } from "react"
 import { cityOfZone, clockIn } from "@/lib/agent/clock"
 import { parseSource } from "@/lib/agent/labels"
@@ -19,12 +15,10 @@ type Question = { question: string; ask: "driver" | "pickup_contact" | "customer
 type Event = { at: string; what: string; status: "planned" | "reported" | "confirmed" | "projected" | "missed"; sources?: string[] }
 export type FindingsData = { problem: string; facts: Fact[]; conflicts?: Conflict[]; key_question: Question; timeline: Event[] }
 
-/** Every findings record on the case, oldest first. The last one is what the agent believes now. */
 export function findingsOf(steps: StepLike[]): FindingsData[] {
   return steps.filter((step) => step.kind === "findings" && step.data.args).map((step) => step.data.args as FindingsData)
 }
 
-/** How much the agent checked, in numbers a person can take in at a glance. */
 export function evidenceCount(findings: FindingsData | undefined) {
   if (!findings) return null
   const sources = new Set<string>()
@@ -48,11 +42,9 @@ const STATUS: { key: FactStatus; label: string; note: string }[] = [
 ]
 const EVENT_LABEL: Record<Event["status"], string> = { planned: "Planned", reported: "Reported", confirmed: "Confirmed", projected: "Projected", missed: "Missed" }
 
-/** Who said each cited record and when, as the case API resolved them. */
 export type SourceInfo = { who: string; at: string | null }
 export const SourcesContext = createContext<Record<string, SourceInfo>>({})
 
-/** "Customer wrote, 19 Oct 12:59" for a record the case cites, or its plain name when the record has no who or when. */
 export function useSourceLabel() {
   const known = useContext(SourcesContext)
   return (ref: string) => {

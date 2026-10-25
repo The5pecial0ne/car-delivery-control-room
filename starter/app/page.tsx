@@ -1,10 +1,5 @@
 "use client"
 
-// The control room. In the middle, the orders that need a person, each one
-// saying what is wrong and how long is left. On the right, everything that is
-// going to plan, so nobody has to wonder about it. Pick any order to see its
-// timeline and, when the agent has a case on it, the case itself.
-
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { laneLabel } from "@/lib/present/labels"
 import { followUp, latestCases, needsAttention, splitQueue } from "@/lib/present/queue"
@@ -28,8 +23,6 @@ export default function ControlRoom() {
   const [selected, setSelected] = useState<string | null>(null)
   const [showList, setShowList] = useState(true)
   const [starting, setStarting] = useState<string | null>(null)
-  // The On track panel can fold to a thin rail. It starts open every visit, and
-  // its scroll position is kept across a fold, so reopening shows it as it was.
   const [watchOpen, setWatchOpen] = useState(true)
   const watchRef = useRef<HTMLElement>(null)
   const watchScroll = useRef(0)
@@ -40,18 +33,14 @@ export default function ControlRoom() {
   useEffect(() => {
     const panel = watchRef.current
     if (!watchOpen || !panel) return
-    // Restore now, and again once the column has finished widening, because
-    // the text rewraps while it grows and the browser nudges the scroll.
     const restore = () => { panel.scrollTop = watchScroll.current }
     restore()
     const timer = setTimeout(restore, 260)
     return () => clearTimeout(timer)
   }, [watchOpen])
-  // Countdowns on the cards tick with the real clock.
   const [wall, setWall] = useState(() => Date.now())
   useEffect(() => { const timer = setInterval(() => setWall(Date.now()), 20_000); return () => clearInterval(timer) }, [])
 
-  // The same orders and search as the board, so both pages agree.
   useEffect(() => {
     const controller = new AbortController()
     const timer = setTimeout(() => {
@@ -73,7 +62,6 @@ export default function ControlRoom() {
     }
   }, [])
 
-  // Poll quickly while the agent is busy, slowly otherwise.
   const busy = listing?.cases.some((item) => item.status === "working") ?? false
   useEffect(() => {
     loadCases()
@@ -84,7 +72,6 @@ export default function ControlRoom() {
   const cases = useMemo(() => latestCases(listing?.cases ?? []), [listing])
   const { attention, monitored } = useMemo(() => splitQueue(overview?.visible ?? [], cases), [overview, cases])
   const snapshotAt = overview?.snapshotAt ?? listing?.snapshotAt ?? null
-  // Every card seen so far, so the selected order keeps its context while a search hides it.
   const known = useRef(new Map<string, BoardCard>())
   for (const card of overview?.visible ?? []) known.current.set(card.id, card)
   const selectedCard = selected ? known.current.get(selected) ?? null : null
@@ -99,7 +86,6 @@ export default function ControlRoom() {
       }
     : null
 
-  // Start on the order in the address, or the most pressing one. Older links point at a case.
   useEffect(() => {
     if (selected || !overview || !listing) return
     const wanted = window.location.hash.replace(/^#/, "")
@@ -184,7 +170,6 @@ export default function ControlRoom() {
         </button>
         <span className="watch-title-text">On track</span><span className="num">{overview ? monitored.length : ""}</span><small>Checked, nothing to do</small>
       </h2>
-      {/* Folded, the list stays mounted but hidden, so nothing in it resets. */}
       <div className="control-watch-body" id="watch-body" hidden={!watchOpen}>
         {loading && <ul className="watch-list" aria-busy="true">{[0, 1, 2, 3].map((index) => <li className="skeleton watch-skeleton" key={index} />)}</ul>}
         {overview && monitored.length === 0 && <p className="lane-empty">{search ? `No monitored orders match “${search}”.` : "No orders are being monitored right now."}</p>}

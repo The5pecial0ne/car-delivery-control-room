@@ -1,6 +1,3 @@
-// The order record, read out section by section. Every value here points back to
-// a record in the API response; the view adds labels, names and grouping.
-
 import { chosenWindows, deriveAttention, deriveKeyDates, latestTracking, strongestTone, windowSource, windowViews } from "./attention"
 import {
   type Bundle, type RelatedRow, activePoints, bool, journeyPlan, list, num, obj, recordedAt, refCount, rows, str, strings,
@@ -724,12 +721,10 @@ function dayWord(iso: string | null, snapshotAt: string | null, zone: string | n
   return `on ${fmtWeekday(iso, zone)}`
 }
 
-/** The lane's headline, then the open exception when the attention list holds one. */
 function buildStory(bundle: Bundle, keyDates: KeyDate[], assignments: AssignmentView[], offers: OfferView[], journey: JourneyView, attention: AttentionItem[]): Story {
   const story = laneStory(bundle, keyDates, assignments, offers, journey)
   const open = attention.find((item) => item.tone === "danger" || item.tone === "warn") ?? null
   if (!open) return story
-  // The lane sentence already says a moving car has no position; do not say it twice.
   if (open.kind === "check" && story.detail?.includes("No driver-app position")) return story
   const tone: Tone = strongestTone(attention.map((item) => item.tone)) === "danger" ? "danger" : story.tone
   const exception = `Open: ${open.title}.`

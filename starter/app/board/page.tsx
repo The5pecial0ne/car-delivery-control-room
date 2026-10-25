@@ -1,11 +1,5 @@
 "use client"
 
-// All orders, at a glance: one donut of where every order stands, by the
-// board's own lanes. Pick a lane to list just those orders in compact rows,
-// or several (Shift-click, or the legend's checkboxes) to compare them; each
-// row opens the order record as before.
-// Search and "Needs a person" narrow the chart and the list together.
-
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { LANES, laneLabel } from "@/lib/present/labels"
@@ -15,9 +9,6 @@ import { AppFrame } from "../components/app-frame"
 import { DonutChart, type Segment } from "../components/donut-chart"
 import { Icon } from "../components/icons"
 
-// One colour per lane, in pipeline order, all from the palette tokens in
-// globals.css (--lane-*). Light and dark alternate so neighbours stay apart,
-// the legend names every lane, and Cancelled is hatched because it is out of play.
 const LANE_COLOR: Record<string, string> = {
   intake: "var(--lane-intake)", ready: "var(--lane-ready)", market: "var(--lane-market)", booked: "var(--lane-booked)",
   moving: "var(--lane-moving)", delivered: "var(--lane-delivered)", cancelled: "var(--lane-cancelled)",
@@ -31,16 +22,15 @@ export default function Orders() {
   const [error, setError] = useState("")
   const [picked, setPicked] = useState<string[]>([])
 
-  // Coming back from an order keeps the lanes that were open.
   useEffect(() => {
     try {
       const saved = JSON.parse(sessionStorage.getItem(STORE) ?? "[]") as unknown
       if (Array.isArray(saved)) setPicked(saved.filter((key): key is string => LANES.some(([lane]) => lane === key)))
-    } catch { /* private window, or an older saved value */ }
+    } catch {}
   }, [])
   const choose = (next: string[]) => {
     setPicked(next)
-    try { if (next.length) sessionStorage.setItem(STORE, JSON.stringify(next)); else sessionStorage.removeItem(STORE) } catch { /* private window */ }
+    try { if (next.length) sessionStorage.setItem(STORE, JSON.stringify(next)); else sessionStorage.removeItem(STORE) } catch {}
   }
 
   useEffect(() => {
@@ -61,14 +51,12 @@ export default function Orders() {
   const attentionTotal = overview ? Object.values(overview.attentionCounts).reduce((sum, count) => sum + count, 0) : 0
   const filtering = !!search || onlyAttention
 
-  // Without a filter the counts are the snapshot's own; with one, they are what the filter leaves.
   const segments: Segment[] = LANES.map(([key, label]) => ({
     key, label, color: LANE_COLOR[key] ?? "var(--sand)", hatched: key === "cancelled",
     count: filtering ? visible.filter((card) => card.displayLane === key).length : overview?.counts[key] ?? 0,
   }))
   const total = segments.reduce((sum, segment) => sum + segment.count, 0)
   const rank = (card: BoardCard) => LANES.findIndex(([key]) => key === card.displayLane)
-  // Lanes in pipeline order, whatever order they were picked in. An order has one lane, and the id check keeps any repeat out.
   const lanes: string[] = LANES.map(([key]) => key).filter((key) => picked.includes(key))
   const chosen = new Set<string>(lanes)
   const seen = new Set<string>()

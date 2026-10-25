@@ -1,7 +1,3 @@
-// What needs a person, and which date decides the order's next step. Both are
-// derived from the records; neither is a stored field. A quiet result means the
-// records show nothing waiting, not that the order is verified safe.
-
 import {
   type Bundle, bool, finalDeliveryPoint, num, obj, originPickupPoint, recordedAt, rows, str, strings,
 } from "./bundle"
@@ -325,9 +321,6 @@ export function deriveAttention(bundle: Bundle): AttentionItem[] {
   }
 
   if (lane === "moving") {
-    // A car on the road with a driver in progress, no driver-app position and a
-    // promise still open is a gap in the record, not an incident. An open or
-    // owned tracking or promise alert already covers the same gap.
     const active = rows(bundle, "work_assignments").find((row) => str(row.details.status) === "IN_PROGRESS")
     const positioned = rows(bundle, "tracking_observations").some((row) => str(row.details.source) === "driver_app")
     const promise = chosenWindows(bundle).promise

@@ -10,7 +10,6 @@ export function Chip({ tone = "neutral", children, dot = false }: { tone?: Tone;
   return <span className={`chip tone-${tone}`}>{dot && <span className="chip-dot" />}{children}</span>
 }
 
-/** A timestamp in the record's zone, with the full UTC time on hover. */
 export function When({ at, zone, snapshotAt, relative = false, withZone = true }: { at: string | null | undefined; zone?: string | null; snapshotAt?: string | null; relative?: boolean; withZone?: boolean }) {
   if (!at) return null
   const rel = relative ? relativeTo(at, snapshotAt) : null
@@ -22,7 +21,6 @@ export function Range({ start, end, zone }: { start: string | null | undefined; 
   return <time dateTime={start} title={`${fmtLong(start)}${end ? ` to ${fmtLong(end)}` : ""}`}>{end ? fmtRange(start, end, zone) : fmtDateTime(start, zone)}</time>
 }
 
-/** Where a person or place has its own page. Operators and agents are roles, not records. */
 export function actorHref(actor: Actor): string | null {
   if (!actor.id) return null
   if (actor.kind === "driver") return `/drivers/${actor.id}`

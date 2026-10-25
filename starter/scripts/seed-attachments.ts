@@ -40,7 +40,6 @@ async function main(): Promise<void> {
     return { attachment, bytes }
   }))
 
-  // Check every file before creating or updating anything in the local store.
   const { client, bucket } = objectStore()
   try {
     try {
