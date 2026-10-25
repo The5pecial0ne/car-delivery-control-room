@@ -9,8 +9,6 @@ It is two things:
 
 All the data is made up by Bahn. No real people, cars, companies or messages.
 
-**Demo video (2:57):** _link to be added_
-
 ## How the agent works
 
 1. **Investigate.** It reads the records and asks the driver or the pickup site. It sorts what it finds into confirmed, reported, planned and unknown, points out where sources disagree, names the one question that would unlock the case, and lays the planned delivery next to what is really happening.
@@ -53,7 +51,7 @@ If port 5438 or 9009 is already taken on your machine, change it in `starter/com
 ## Where to read more
 
 - [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md): how we built it, and how we worked with AI along the way.
-- [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md): the demo video's script, shot by shot, with the voiceover word for word.
+- [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md): a step-by-step walkthrough of the app, with what to say at each step.
 - `PARTICIPANT-BRIEF.md` and `OPERATIONS-CONTEXT.md`: Bahn's brief and how car delivery work goes there.
 
 ## What is where
