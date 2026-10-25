@@ -68,6 +68,13 @@ check("an agent case waiting for a person or stopped always reaches the desk", (
   assert.equal(needsAttention(quiet, { ...waiting, status: "resolved" }), false)
 })
 
+check("an order whose agent case is closed leaves the desk, even with the old alert still in the snapshot", () => {
+  const risky = card("risky", [item("warn", "Open alert: Ferry connection risk")])
+  assert.equal(needsAttention(risky), true)
+  assert.equal(needsAttention(risky, { id: "c2", orderId: "risky", status: "resolved", updatedAt: SNAPSHOT }), false)
+  assert.equal(needsAttention(risky, { id: "c2", orderId: "risky", status: "working", updatedAt: SNAPSHOT }), true)
+})
+
 check("splitQueue puts waiting cases first and routine orders on the watch list", () => {
   const cards = [card("routine", [item("neutral")]), card("risk", [item("warn")]), card("critical", [item("danger")]), card("case", [])]
   const cases = new Map<string, QueueCase>([["case", { id: "c", orderId: "case", status: "needs_person", updatedAt: SNAPSHOT }]])

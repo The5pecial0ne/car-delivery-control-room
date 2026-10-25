@@ -45,7 +45,10 @@ export const needsPerson = (card: Pick<BoardCard, "attentionTone">) =>
   card.attentionTone === "danger" || card.attentionTone === "warn" || card.attentionTone === "accent"
 
 export const needsAttention = (card: BoardCard, agentCase?: QueueCase | null) =>
-  needsPerson(card) || agentCase?.status === "needs_person" || agentCase?.status === "failed"
+  agentCase?.status === "needs_person" || agentCase?.status === "failed" ? true
+    // The snapshot never changes, so an alert the agent has dealt with still reads as open. Its closed case is the newer word.
+    : agentCase?.status === "resolved" ? false
+    : needsPerson(card)
 
 /** The first routine follow-up on an order that is otherwise going to plan, if it has one. */
 export const followUp = (card: BoardCard) => needsPerson(card) ? null : card.attention[0] ?? null

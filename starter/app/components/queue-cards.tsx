@@ -58,9 +58,10 @@ export function QueueCard({ card, agentCase, snapshotAt, wall, active, onSelect 
   </button>
 }
 
-export function WatchCard({ card, snapshotAt, active, onSelect }: { card: BoardCard; snapshotAt: string | null; active: boolean; onSelect: (id: string) => void }) {
-  const status = watchStatus(card)
-  const follow = followUp(card)
+export function WatchCard({ card, agentCase, snapshotAt, active, onSelect }: { card: BoardCard; agentCase?: CaseSummary; snapshotAt: string | null; active: boolean; onSelect: (id: string) => void }) {
+  const handled = agentCase?.status === "resolved"
+  const status = handled ? { label: "Agent handled", tone: "ok" as Tone } : watchStatus(card)
+  const follow = handled ? null : followUp(card)
   const driver = card.work.find((line) => line.icon === "driver" || line.icon === "offer")
   const date = card.decisive
   const milestone = driver?.text ?? (date ? `${date.label} ${dateText(date.start, date.end, date.zone)}` : null)
@@ -69,7 +70,9 @@ export function WatchCard({ card, snapshotAt, active, onSelect }: { card: BoardC
     <span className="watch-card-top"><span className="watch-card-car">{card.vehicle}</span><span className="mono">{card.reference}</span></span>
     <span className="watch-card-route">{card.from.city}<Icon name="arrow" size={11} />{card.to.city}<span className={`watch-card-status tone-${status.tone}`}><Icon name={status.tone === "ok" ? "check" : "dot"} size={11} />{status.label}</span></span>
     {milestone && <span className="watch-card-next">{milestone}</span>}
-    {follow
+    {handled
+      ? <span className="watch-card-checked">Agent: {agentCase?.headline ?? "closed the case"}</span>
+      : follow
       ? <span className="watch-card-checked">Followed up: {follow.short}</span>
       : card.checks.length > 0 && <span className="watch-card-checked">Checked: {card.checks.join(" · ")}</span>}
     <span className="watch-card-when">Updated <time dateTime={card.updatedAt}>{fmtDateTime(card.updatedAt, date?.zone ?? null)}</time>{updated ? ` · ${updated.text}` : ""}</span>

@@ -13,7 +13,7 @@ We built the **"Needs you" desk** and an agent that works each case in **two sta
 
 How we built it: [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md). Demo walkthrough: [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md).
 
-- Only orders with a real problem reach the desk (19 of 100 in the snapshot). Every other order says what was checked ("no open alerts · driver on the road · app ETA inside the promise"), or who is following it up.
+- Only orders with a real problem reach the desk (18 of 100 in the snapshot, with the recorded cases loaded). Every other order says what was checked ("no open alerts · driver on the road · app ETA inside the promise"), or who is following it up.
 
 **Run it:** follow "Run the starter" below and open http://localhost:3000.
 

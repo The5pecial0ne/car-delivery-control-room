@@ -189,7 +189,7 @@ export default function ControlRoom() {
         {lanes.map((lane) => <div className="watch-group" key={lane}>
           <h3 className="watch-group-title">{laneLabel(lane)}<span className="num">{monitored.filter((card) => card.displayLane === lane).length}</span></h3>
           <ul className="watch-list">{monitored.filter((card) => card.displayLane === lane).map((card) => <li key={card.id}>
-            <WatchCard card={card} snapshotAt={snapshotAt} active={card.id === selected} onSelect={choose} />
+            <WatchCard card={card} agentCase={cases.get(card.id)} snapshotAt={snapshotAt} active={card.id === selected} onSelect={choose} />
           </li>)}</ul>
         </div>)}
       </div>

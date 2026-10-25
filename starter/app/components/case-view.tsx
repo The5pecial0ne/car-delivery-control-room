@@ -163,7 +163,8 @@ export function CaseView({ summary, snapshotAt, onChange, onLoaded, onPlan, titl
       note={!decision && detail.status === "working" ? <p className="case-working">The agent is looking into this. It will bring you a decision if it needs one.</p> : null} />
     {error && <p className="board-error case-error" role="alert">{error}</p>}
 
-    <section className="case-decide" id="decide" aria-label="Decision">
+    {detail.status === "resolved" ? <p className="case-working">The agent handled this without you. Nothing to decide. What it did is in the agent trace below.</p>
+      : <section className="case-decide" id="decide" aria-label="Decision">
       <PrioritySwitch priority={priority} onChange={setPriority} />
       {decision && <DecisionPanel decision={decision} zone={zone} priority={priority} onAct={(body) => act(`/api/cases/${detail.id}/decision`, body)} />}
       {!decision && planB.plan && <PreparedOptions plan={planB.plan} priority={priority}
@@ -171,7 +172,7 @@ export function CaseView({ summary, snapshotAt, onChange, onLoaded, onPlan, titl
         onHandOver={live ? null : async (option) => {
           try { await handOver(detail.orderId, detail.headline ?? detail.trigger, option, priority); onChange() } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not start the agent") }
         }} />}
-    </section>
+    </section>}
 
     <div className="folds">
       {(found || decision) ? <Disclosure id="evidence" tone="agent"
